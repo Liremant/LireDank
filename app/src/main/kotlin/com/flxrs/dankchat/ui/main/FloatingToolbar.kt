@@ -41,6 +41,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -396,7 +397,7 @@ fun FloatingToolbar(
                                     Box(
                                         modifier =
                                             Modifier
-                                                .padding(horizontal = 12.dp)
+                                                .padding(horizontal = 4.dp)
                                                 .onSizeChanged { tabViewportWidth = it.width }
                                                 .clipToBounds()
                                                 .horizontalScroll(tabScrollState),
@@ -421,7 +422,7 @@ fun FloatingToolbar(
                                                                 onClick = { onAction(ToolbarAction.SelectTab(index)) },
                                                                 onLongClick = { onAction(ToolbarAction.LongClickTab) },
                                                             ).defaultMinSize(minHeight = 48.dp)
-                                                            .padding(horizontal = 12.dp, vertical = 14.dp)
+                                                            .padding(horizontal = 8.dp, vertical = 14.dp)
                                                             .reportPosition(tabLayoutState, index),
                                                 ) {
                                                     Text(
@@ -436,7 +437,20 @@ fun FloatingToolbar(
                                                     )
                                                     if (tab.mentionCount > 0) {
                                                         Spacer(Modifier.width(4.dp))
-                                                        Badge()
+                                                        // A bare dot only says "somewhere", not "where". The count is capped and
+                                                        // uses tabular digits so the pill does not jitter as it changes.
+                                                        Text(
+                                                            text = if (tab.mentionCount > MENTION_COUNT_CAP) "$MENTION_COUNT_CAP+" else "${tab.mentionCount}",
+                                                            color = MaterialTheme.colorScheme.onError,
+                                                            style =
+                                                                MaterialTheme.typography.labelSmall.copy(
+                                                                    fontFeatureSettings = "tnum",
+                                                                ),
+                                                            modifier =
+                                                                Modifier
+                                                                    .background(MaterialTheme.colorScheme.error, CircleShape)
+                                                                    .padding(horizontal = 5.dp, vertical = 1.dp),
+                                                        )
                                                     }
                                                 }
                                             }
@@ -646,7 +660,15 @@ fun FloatingToolbar(
                         }
                     val actionSlots =
                         when {
-                            showTabs && tabState.tabs.isNotEmpty() -> ((toolbarWidth - TOOLBAR_PILL_SPACING - MIN_TABS_PILL_WIDTH) / TOOLBAR_ACTION_SLOT_WIDTH).toInt()
+                            showTabs && tabState.tabs.isNotEmpty() -> {
+                                val available = (toolbarWidth - TOOLBAR_PILL_SPACING - MIN_TABS_PILL_WIDTH) / TOOLBAR_ACTION_SLOT_WIDTH
+                                // On narrow panes the action pill used to eat ~50% of the row, leaving room for barely
+                                // one tab. Cap it at two slots so the tab strip gets the majority of the width; the
+                                // remaining actions already collapse into the inline menu.
+                                val maxSlots = if (toolbarWidth < NARROW_TOOLBAR_WIDTH) 2 else Int.MAX_VALUE
+                                available.toInt().coerceIn(1, maxSlots)
+                            }
+
                             else -> optionalActions.size + 1
                         }
                     val collapsedToolbarActions = optionalActions.drop((actionSlots - 1).coerceIn(0, optionalActions.size))
@@ -981,7 +1003,9 @@ private fun Modifier.skipIntrinsicHeight() = this.then(
 )
 
 private val TOOLBAR_ACTION_SLOT_WIDTH = 48.dp
-private val MIN_TABS_PILL_WIDTH = 120.dp
+private val MIN_TABS_PILL_WIDTH = 96.dp
+private val NARROW_TOOLBAR_WIDTH = 480.dp
+private const val MENTION_COUNT_CAP = 99
 private val POPUP_WINDOW_MARGIN = 8.dp
 
 // Row padding on both sides plus the spacer between the pills

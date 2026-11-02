@@ -8,6 +8,7 @@ import com.flxrs.dankchat.data.UserName
 import com.flxrs.dankchat.data.chat.ChatImportance
 import com.flxrs.dankchat.data.chat.ChatItem
 import com.flxrs.dankchat.data.repo.chat.UsersRepository
+import com.flxrs.dankchat.data.repo.emote.SevenTVCosmeticsRepository
 import com.flxrs.dankchat.data.toDisplayName
 import com.flxrs.dankchat.data.toUserId
 import com.flxrs.dankchat.data.toUserName
@@ -54,6 +55,7 @@ import org.koin.core.annotation.Single
 @Single
 class ChatMessageMapper(
     private val usersRepository: UsersRepository,
+    private val sevenTVCosmeticsRepository: SevenTVCosmeticsRepository,
 ) {
     fun mapToUiState(
         item: ChatItem,
@@ -647,6 +649,8 @@ class ChatMessageMapper(
             }
 
         val rawNameColor = resolveNameColor(userDisplay?.color, color, userId, chatSettings)
+        // Paints arrive asynchronously; until then the nickname keeps its IRC colour
+        val namePaint = userId?.let { sevenTVCosmeticsRepository.getCached(it)?.paint }
         // Unprefixed names would be invisible but tappable without any styling, so they need a toggle enabled
         val matchUnprefixedNames = chatSettings.boldUsernameMentions || chatSettings.colorUsernameMentions
         val usernameMentions =
@@ -684,6 +688,7 @@ class ChatMessageMapper(
             displayName = displayName,
             badges = badgeUis,
             rawNameColor = rawNameColor,
+            namePaint = namePaint,
             nameText = nameText,
             message = message,
             links = findLinks(message).toImmutableList(),

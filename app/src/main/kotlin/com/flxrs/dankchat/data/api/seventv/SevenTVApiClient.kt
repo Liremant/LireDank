@@ -2,6 +2,7 @@ package com.flxrs.dankchat.data.api.seventv
 
 import com.flxrs.dankchat.data.UserId
 import com.flxrs.dankchat.data.api.recoverNotFoundWith
+import com.flxrs.dankchat.data.api.seventv.dto.SevenTVCosmeticsResponse
 import com.flxrs.dankchat.data.api.seventv.dto.SevenTVEmoteDto
 import com.flxrs.dankchat.data.api.seventv.dto.SevenTVEmoteSetDto
 import com.flxrs.dankchat.data.api.seventv.dto.SevenTVUserDto
@@ -37,4 +38,12 @@ class SevenTVApiClient(
             .emotes
             .orEmpty()
     }
+
+    /** Paint and badge for a Twitch user id. The GraphQL endpoint answers 200 with a null user when unknown. */
+    suspend fun getSevenTVCosmetics(twitchUserId: String): Result<SevenTVCosmeticsResponse?> = runCatching {
+        sevenTVApi
+            .getCosmetics(twitchUserId)
+            .throwApiErrorOnFailure(json)
+            .body<SevenTVCosmeticsResponse>()
+    }.recoverNotFoundWith(default = null)
 }

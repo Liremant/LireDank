@@ -55,6 +55,7 @@ class NetworkModule {
         const val FFZ_BASE_URL = "https://api.frankerfacez.com/v1/"
         const val BTTV_BASE_URL = "https://api.betterttv.net/3/cached/"
         const val SEVENTV_BASE_URL = "https://7tv.io/v3/"
+        const val SEVENTV_GQL_URL = "https://7tv.io/v4/gql"
 
         const val DEFAULT_TIMEOUT_MS = 30_000L
 
@@ -214,6 +215,12 @@ class NetworkModule {
         ktorClient.config {
             defaultRequest {
                 url(SEVENTV_BASE_URL)
+            }
+        },
+        // Cosmetics live on the v4 GraphQL endpoint, which is a different host path than the REST client.
+        ktorClient.config {
+            defaultRequest {
+                url(SEVENTV_GQL_URL)
             }
         },
     )

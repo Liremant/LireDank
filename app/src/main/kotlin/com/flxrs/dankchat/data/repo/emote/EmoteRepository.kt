@@ -68,6 +68,7 @@ class EmoteRepository(
     private val helixApiClient: HelixApiClient,
     private val chatSettingsDataStore: ChatSettingsDataStore,
     private val channelRepository: ChannelRepository,
+    private val sevenTVCosmeticsRepository: SevenTVCosmeticsRepository,
     private val dispatchersProvider: DispatchersProvider,
 ) {
     private val ffzModBadges = ConcurrentHashMap<UserName, String>()
@@ -369,6 +370,11 @@ class EmoteRepository(
                 val dankChatBadge = userId?.let { _dankChatBadges.value[it] }
                 if (dankChatBadge != null) {
                     add(dankChatBadge)
+                }
+                // 7TV badge rides the same per-user path; it is not an IRC tag
+                val sevenTVBadge = userId?.let { sevenTVCosmeticsRepository.getCached(it)?.badgeUrl }
+                if (sevenTVBadge != null) {
+                    add(Badge.SevenTVBadge(url = sevenTVBadge, title = null, badgeTag = null, badgeInfo = null))
                 }
             }
 

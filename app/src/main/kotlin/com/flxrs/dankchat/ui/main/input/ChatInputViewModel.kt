@@ -58,6 +58,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -110,14 +111,25 @@ class ChatInputViewModel(
             text.toString().codePointCount(0, text.length)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
+    // Sending must not be gated on the composition region: the IME commits its word before delivering the action.
     private val textFlow = snapshotFlow { textFieldState.text.toString() }
+
+    // Only text that is not part of an active IME composition region. Rewriting the buffer while the keyboard
+    // still owns a composing word drops that region, which loses the autocorrect highlight and its suggestions.
+    private val committedTextFlow = snapshotFlow { textFieldState.text.toString() to textFieldState.composition }
+        .mapNotNull { (text, composition) -> if (composition == null) text else null }
+
     private val textAndCursorFlow =
         snapshotFlow {
-            textFieldState.text.toString() to textFieldState.selection.start
+            Triple(textFieldState.text.toString(), textFieldState.selection.start, textFieldState.composition)
         }
 
-    // Debounce text/cursor changes for suggestion lookups
-    private val debouncedTextAndCursor = textAndCursorFlow.debounce(SUGGESTION_DEBOUNCE_MS)
+    // Debounce text/cursor changes for suggestion lookups, and drop updates while the IME owns a composing word:
+    // the dropdown must not open (or shift) in the middle of an uncommitted, autocorrectable word.
+    private val debouncedTextAndCursor =
+        textAndCursorFlow
+            .debounce(SUGGESTION_DEBOUNCE_MS)
+            .mapNotNull { (text, cursor, composition) -> if (composition == null) text to cursor else null }
 
     // Get suggestions based on current text, cursor position, and active channel
     val suggestions: StateFlow<ImmutableList<Suggestion>> =
@@ -213,7 +225,7 @@ class ChatInputViewModel(
         }
 
         viewModelScope.launch {
-            textFlow.collect { text ->
+            committedTextFlow.collect { text ->
                 val expanded = expandReplyToLastWhisper(text, chatRepository.lastReceivedWhisperUser.value) ?: return@collect
                 textFieldState.edit {
                     replace(0, length, expanded)

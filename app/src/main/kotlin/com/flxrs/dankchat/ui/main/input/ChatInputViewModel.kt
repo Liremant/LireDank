@@ -295,7 +295,9 @@ class ChatInputViewModel(
                         showSendWaitTimer = it.showSendWaitTimer,
                         showClearInputButton = it.showClearInputButton,
                         showSendButton = it.showSendButton,
-                        isCompactMode = it.inputActions.isEmpty(),
+                        // The single-line row keeps the input short; the actions stay reachable through the
+                        // overflow menu instead of occupying a whole 52dp row under the field.
+                        isCompactMode = it.inputActions.isEmpty() || !it.multilineInput,
                     )
                 },
                 preferenceStore.isLoggedInFlow,

@@ -301,11 +301,11 @@ fun ChatInputLayout(
                             callbacks.onInputMultilineChanged(singleLineHeight > 0 && size.height > singleLineHeight)
                         }
 
-                val chatTextField: @Composable (Modifier, PaddingValues?) -> Unit = { textFieldModifier, contentPadding ->
+                val chatTextField: @Composable (Modifier, PaddingValues?, String?) -> Unit = { textFieldModifier, contentPadding, label ->
                     ChatTextField(
                         textFieldState = textFieldState,
                         enabled = textFieldEnabled,
-                        hint = hint,
+                        hint = label,
                         characterCounter = characterCounter,
                         showClearInputButton = enabled && uiState.showClearInputButton,
                         focusRequester = focusRequester,
@@ -329,7 +329,7 @@ fun ChatInputLayout(
                             onEmoteClick = onEmoteClick,
                             modifier = Modifier.size(40.dp),
                         )
-                        chatTextField(Modifier.weight(1f), TextFieldDefaults.contentPaddingWithoutLabel(end = 8.dp))
+                        chatTextField(Modifier.weight(1f), TextFieldDefaults.contentPaddingWithoutLabel(end = 8.dp), null)
                         if (uiState.showSendWaitTimer) {
                             SendWaitTimer()
                         }
@@ -366,7 +366,7 @@ fun ChatInputLayout(
                         }
                     }
                 } else {
-                    chatTextField(Modifier.fillMaxWidth(), null)
+                    chatTextField(Modifier.fillMaxWidth(), null, hint)
                 }
 
                 HelperTextRow(helperText = helperText)
@@ -1062,7 +1062,7 @@ private fun EndAlignedActionGroup(
 private fun ChatTextField(
     textFieldState: TextFieldState,
     enabled: Boolean,
-    hint: String,
+    hint: String?,
     characterCounter: StateFlow<CharacterCounterState>,
     showClearInputButton: Boolean,
     focusRequester: FocusRequester,
@@ -1095,7 +1095,10 @@ private fun ChatTextField(
                     }
                 },
         contentPadding = contentPadding ?: TextFieldDefaults.contentPaddingWithLabel(),
-        label = { Text(hint) },
+        // A floating label adds vertical space above the text. In the compact single-line row the same hint is
+        // shown as a placeholder instead, which costs nothing.
+        label = if (contentPadding == null) hint?.let { { Text(it) } } else null,
+        placeholder = if (contentPadding != null) hint?.let { { Text(it) } } else null,
         suffix = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,

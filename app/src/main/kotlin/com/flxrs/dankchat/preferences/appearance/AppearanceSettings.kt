@@ -39,6 +39,8 @@ data class AppearanceSettings(
     val showSendWaitTimer: Boolean = false,
     val showClearInputButton: Boolean = true,
     val showSendButton: Boolean = true,
+    // Off by default: the actions row costs a full 52dp strip above the keyboard.
+    val multilineInput: Boolean = false,
     val swipeNavigation: Boolean = true,
     val compactChannelInfo: Boolean = false,
     val fullscreenButtonOpacity: Float = 0.75f,

@@ -33,8 +33,7 @@ internal object SevenTVCosmeticsQuery {
         }
         """.trimIndent()
 
-    fun body(platformId: String): SevenTVCosmeticsRequest =
-        SevenTVCosmeticsRequest(query = DOCUMENT, variables = SevenTVCosmeticsVariables(platformId))
+    fun body(platformId: String): SevenTVCosmeticsRequest = SevenTVCosmeticsRequest(query = DOCUMENT, variables = SevenTVCosmeticsVariables(platformId))
 }
 
 @Keep

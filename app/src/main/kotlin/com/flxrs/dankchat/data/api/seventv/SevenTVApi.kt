@@ -1,13 +1,12 @@
 package com.flxrs.dankchat.data.api.seventv
 
-
 import com.flxrs.dankchat.data.UserId
 import io.ktor.client.HttpClient
+import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
-import io.ktor.client.request.get
 
 class SevenTVApi(
     private val ktorClient: HttpClient,
@@ -19,9 +18,8 @@ class SevenTVApi(
 
     suspend fun getGlobalEmotes() = ktorClient.get("emote-sets/global")
 
-    suspend fun getCosmetics(twitchUserId: String) =
-        gqlClient.post {
-            contentType(ContentType.Application.Json)
-            setBody(SevenTVCosmeticsQuery.body(twitchUserId))
-        }
+    suspend fun getCosmetics(twitchUserId: String) = gqlClient.post {
+        contentType(ContentType.Application.Json)
+        setBody(SevenTVCosmeticsQuery.body(twitchUserId))
+    }
 }

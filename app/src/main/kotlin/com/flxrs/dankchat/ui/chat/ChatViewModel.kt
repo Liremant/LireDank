@@ -9,6 +9,8 @@ import com.flxrs.dankchat.data.api.helix.HelixApiException
 import com.flxrs.dankchat.data.auth.AuthDataStore
 import com.flxrs.dankchat.data.chat.ChatItem
 import com.flxrs.dankchat.data.repo.chat.ChatMessageRepository
+import com.flxrs.dankchat.data.repo.emote.SevenTVCosmeticsRepository
+import com.flxrs.dankchat.data.twitch.message.PrivMessage
 import com.flxrs.dankchat.data.twitch.message.SystemMessageType
 import com.flxrs.dankchat.di.DispatchersProvider
 import com.flxrs.dankchat.preferences.DankChatPreferenceStore
@@ -43,6 +45,7 @@ class ChatViewModel(
     @InjectedParam private val channel: UserName,
     private val chatMessageRepository: ChatMessageRepository,
     chatMessageMapper: ChatMessageMapper,
+    private val sevenTVCosmeticsRepository: SevenTVCosmeticsRepository,
     private val helixApiClient: HelixApiClient,
     private val authDataStore: AuthDataStore,
     private val preferenceStore: DankChatPreferenceStore,
@@ -68,6 +71,17 @@ class ChatViewModel(
 
     private val chat: StateFlow<List<ChatItem>> = chatMessageRepository.getChat(channel)
 
+    init {
+        // Warm the 7TV cosmetics cache for senders so a paint appears without a network wait per message
+        viewModelScope.launch {
+            chat.collect { items ->
+                items.forEach { item ->
+                    (item.message as? PrivMessage)?.userId?.let { sevenTVCosmeticsRepository.prefetch(viewModelScope, it) }
+                }
+            }
+        }
+    }
+
     private val mappingCache = ChatMessageMappingCache()
     private val checkeredTracker = CheckeredMessageTracker()
 
@@ -78,8 +92,9 @@ class ChatViewModel(
             chat,
             appearanceSettingsDataStore.currentSettings,
             chatSettingsDataStore.currentSettings,
-        ) { messages, appearanceSettings, chatSettings ->
-            mappingCache.prepare(chatSettings, itemCount = chatSettings.scrollbackLength)
+            sevenTVCosmeticsRepository.version,
+        ) { messages, appearanceSettings, chatSettings, cosmeticsVersion ->
+            mappingCache.prepare(chatSettings, itemCount = chatSettings.scrollbackLength, cosmeticsVersion = cosmeticsVersion)
 
             val zone = ZoneId.systemDefault()
             val result = ArrayList<ChatMessageUiState>(messages.size + 8)

@@ -3,13 +3,16 @@ package com.flxrs.dankchat.data.repo.emote
 import androidx.collection.LruCache
 import com.flxrs.dankchat.data.UserId
 import com.flxrs.dankchat.data.api.seventv.SevenTVApiClient
-import com.flxrs.dankchat.data.api.seventv.dto.SevenTVCosmeticsResponse
 import com.flxrs.dankchat.data.api.seventv.dto.SevenTVColor
+import com.flxrs.dankchat.data.api.seventv.dto.SevenTVCosmeticsResponse
 import com.flxrs.dankchat.data.api.seventv.dto.SevenTVPaint
 import com.flxrs.dankchat.di.DispatchersProvider
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.core.annotation.Single
@@ -30,12 +33,19 @@ class SevenTVCosmeticsRepository(
     private val dispatchersProvider: DispatchersProvider,
 ) {
     private val cache = LruCache<UserId, CacheEntry>(CACHE_SIZE)
+
+    // Bumped for every resolved user so a chat can re-map once paints are known
+    private val _version = MutableStateFlow(0)
+    val version: StateFlow<Int> = _version.asStateFlow()
     private val inFlight = mutableMapOf<UserId, CompletableDeferred<SevenTVCosmetics?>>()
 
     fun getCached(userId: UserId): SevenTVCosmetics? = synchronized(cache) { cache[userId]?.cosmetics }
 
     /** Starts a lookup unless this user is already resolved or being fetched. Returns immediately. */
-    fun prefetch(scope: CoroutineScope, userId: UserId) {
+    fun prefetch(
+        scope: CoroutineScope,
+        userId: UserId,
+    ) {
         val job =
             synchronized(cache) {
                 if (cache[userId] != null || inFlight.containsKey(userId)) return
@@ -56,6 +66,7 @@ class SevenTVCosmeticsRepository(
             synchronized(cache) {
                 cache.put(userId, CacheEntry(result))
                 inFlight.remove(userId)
+                _version.value++
             }
             job.complete(result)
         }
@@ -63,12 +74,16 @@ class SevenTVCosmeticsRepository(
 
     fun clear() {
         synchronized(cache) { cache.evictAll() }
+        _version.value++
     }
 
     private fun SevenTVCosmeticsResponse.toCosmetics(): SevenTVCosmetics? {
         val style = data.users?.userByConnection?.style ?: return null
         val paint = style.activePaint?.toPaintUi()
-        val badgeUrl = style.activeBadge?.images?.lastOrNull()?.url
+        val badgeUrl = style.activeBadge
+            ?.images
+            ?.lastOrNull()
+            ?.url
         return if (paint == null && badgeUrl == null) {
             null
         } else {
@@ -79,7 +94,10 @@ class SevenTVCosmeticsRepository(
     private fun SevenTVPaint.toPaintUi(): SevenTVPaintUi? {
         // Image layers and paints without colour stops cannot be reproduced as a gradient
         val layer = data?.layers?.firstOrNull { it.ty?.stops?.isNotEmpty() == true } ?: return null
-        val stops = layer.ty?.stops.orEmpty().mapNotNull { stop -> stop.color.toColorInt()?.let { stop.at to it } }
+        val stops = layer.ty
+            ?.stops
+            .orEmpty()
+            .mapNotNull { stop -> stop.color.toColorInt()?.let { stop.at to it } }
         if (stops.isEmpty()) return null
         return SevenTVPaintUi(id = id, stops = stops, angle = layer.ty?.angle ?: 0f)
     }

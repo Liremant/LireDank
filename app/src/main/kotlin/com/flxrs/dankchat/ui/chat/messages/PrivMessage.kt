@@ -24,9 +24,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -37,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
 import com.flxrs.dankchat.data.UserName
+import com.flxrs.dankchat.data.repo.emote.SevenTVPaintUi
 import com.flxrs.dankchat.data.toUserName
 import com.flxrs.dankchat.ui.chat.BadgeUi
 import com.flxrs.dankchat.ui.chat.ChatMessageUiState
@@ -335,6 +339,7 @@ private fun PrivMessageText(
     val context = LocalPlatformContext.current
     val defaultTextColor = rememberAdaptiveTextColor(backgroundColor)
     val nameColor = rememberNormalizedColor(message.rawNameColor, backgroundColor)
+    val namePaintBrush = remember(message.namePaint, backgroundColor) { message.namePaint?.toBrush(backgroundColor) }
     val linkColor = rememberAdaptiveLinkColor(backgroundColor)
     val backgroundArgb = effectiveBackgroundArgb(backgroundColor)
 
@@ -402,12 +407,16 @@ private fun PrivMessageText(
 
                 // Username with click annotation (only if nameText is not empty)
                 if (includePrefix && message.nameText.isNotEmpty()) {
-                    withStyle(
-                        SpanStyle(
-                            fontWeight = FontWeight.Bold,
-                            color = nameColor,
-                        ),
-                    ) {
+                    // SpanStyle takes either a colour or a brush, never both: a 7TV paint replaces the
+                    // solid IRC colour for the whole nickname, the same idea as Chatterino drawing the
+                    // name tag into a pixmap with a QBrush.
+                    val nameStyle =
+                        if (namePaintBrush != null) {
+                            SpanStyle(brush = namePaintBrush, fontWeight = FontWeight.Bold)
+                        } else {
+                            SpanStyle(color = nameColor, fontWeight = FontWeight.Bold)
+                        }
+                    withStyle(nameStyle) {
                         pushStringAnnotation(
                             tag = "USER",
                             annotation = "${message.userId?.value.orEmpty()}|${message.userName.value}|${message.displayName.value}|${message.channel.value}",
@@ -545,3 +554,47 @@ private fun List<EmoteUi>.contentEmotes(
     start: Int,
     endExclusive: Int,
 ): List<EmoteUi> = filter { it.position.first >= start && it.position.last <= endExclusive }.sortedBy { it.position.first }
+
+/**
+ * 7TV paint as a text brush. Chatterino draws the name tag into a pixmap with a QBrush whose gradient runs
+ * along the name box at [SevenTVPaintUi.angle]; Compose applies the brush to the text span directly.
+ * Stops are blended towards the chat background so a dark stop stays readable on a dark theme.
+ */
+internal fun SevenTVPaintUi.toBrush(backgroundColor: Color): Brush {
+    val colors =
+        stops.map { (position, argb) ->
+            position to blendTowardsBackground(Color(argb), backgroundColor)
+        }
+    return Brush.linearGradient(
+        colorStops = colors.toTypedArray(),
+        start = Offset.Zero,
+        // Infinite end makes the gradient span the drawn text bounds
+        end = Offset.Infinite,
+    )
+}
+
+// Keeps the paint's own colours, only lifting contrast when a stop would vanish into the background
+private fun blendTowardsBackground(
+    color: Color,
+    background: Color,
+): Color {
+    val distance = kotlin.math.abs(color.luminance() - background.luminance())
+    return if (distance > MIN_PAINT_CONTRAST) {
+        color
+    } else if (background.luminance() > 0.5f) {
+        color.darken(0.35f)
+    } else {
+        color.lighten(0.35f)
+    }
+}
+
+private fun Color.darken(fraction: Float): Color = Color(red * (1f - fraction), green * (1f - fraction), blue * (1f - fraction), alpha)
+
+private fun Color.lighten(fraction: Float): Color = Color(
+    red + (1f - red) * fraction,
+    green + (1f - green) * fraction,
+    blue + (1f - blue) * fraction,
+    alpha,
+)
+
+private const val MIN_PAINT_CONTRAST = 0.15f

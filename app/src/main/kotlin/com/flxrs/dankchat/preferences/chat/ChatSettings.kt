@@ -95,6 +95,7 @@ enum class VisibleBadges {
     Vanity,
     DankChat,
     SharedChat,
+    SevenTV,
 }
 
 enum class VisibleThirdPartyEmotes {

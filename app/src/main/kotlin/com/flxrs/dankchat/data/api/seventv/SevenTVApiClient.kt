@@ -41,9 +41,16 @@ class SevenTVApiClient(
 
     /** Paint and badge for a Twitch user id. The GraphQL endpoint answers 200 with a null user when unknown. */
     suspend fun getSevenTVCosmetics(twitchUserId: String): Result<SevenTVCosmeticsResponse?> = runCatching {
-        sevenTVApi
-            .getCosmetics(twitchUserId)
-            .throwApiErrorOnFailure(json)
-            .body<SevenTVCosmeticsResponse>()
+        val response =
+            sevenTVApi
+                .getCosmetics(twitchUserId)
+                .throwApiErrorOnFailure(json)
+                .body<SevenTVCosmeticsResponse>()
+
+        // A rejected document answers 200 with data:null, so surface the reason instead of hiding it
+        if (response.errors.isNotEmpty()) {
+            throw IllegalStateException("7TV cosmetics query rejected: ${response.errors.joinToString { it.message }}")
+        }
+        response
     }.recoverNotFoundWith(default = null)
 }

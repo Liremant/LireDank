@@ -64,6 +64,9 @@ class SevenTVCosmeticsRepository(
                     null
                 }
 
+            logger.info {
+                "7TV cosmetics $userId -> paint=${result?.paint?.let { describe(it) } ?: "none"} badge=${result?.badgeUrl != null}"
+            }
             synchronized(cache) {
                 cache.put(userId, CacheEntry(result))
                 inFlight.remove(userId)
@@ -79,7 +82,7 @@ class SevenTVCosmeticsRepository(
     }
 
     private fun SevenTVCosmeticsResponse.toCosmetics(): SevenTVCosmetics? {
-        val style = data.users?.userByConnection?.style ?: return null
+        val style = data?.users?.userByConnection?.style ?: return null
         val paint = style.activePaint?.toPaintUi()
         val badgeUrl = style.activeBadge
             ?.images
@@ -116,6 +119,13 @@ class SevenTVCosmeticsRepository(
 
             else -> null
         }
+    }
+
+    private fun describe(paint: SevenTVPaintUi): String = when (paint) {
+        is SevenTVPaintUi.Linear -> "linear angle=${paint.angle} repeat=${paint.repeating} stops=${paint.stops.map { "${it.at}:${Integer.toHexString(it.color)}" }}"
+        is SevenTVPaintUi.Radial -> "radial repeat=${paint.repeating} stops=${paint.stops.map { "${it.at}:${Integer.toHexString(it.color)}" }}"
+        is SevenTVPaintUi.Solid -> "solid ${Integer.toHexString(paint.color)}"
+        is SevenTVPaintUi.Image -> "image ${paint.url}"
     }
 
     private fun SevenTVPaintLayerType.toStops(): List<SevenTVPaintStopUi> = stops.mapNotNull { stop -> stop.color.toColorInt()?.let { SevenTVPaintStopUi(stop.at, it) } }.sortedBy { it.at }

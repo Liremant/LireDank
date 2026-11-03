@@ -24,7 +24,6 @@ internal object SevenTVCosmeticsQuery {
                         ... on PaintLayerTypeLinearGradient { angle repeating stops { at color { r g b a } } }
                         ... on PaintLayerTypeRadialGradient { repeating stops { at color { r g b a } } }
                         ... on PaintLayerTypeSingleColor { color { r g b a } }
-                        ... on PaintLayerTypeImage { image_url }
                       }
                     }
                     shadows { color { r g b a } offsetX offsetY blur }

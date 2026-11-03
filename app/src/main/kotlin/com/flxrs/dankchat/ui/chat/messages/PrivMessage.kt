@@ -29,7 +29,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -337,11 +339,6 @@ private fun PrivMessageText(
     val context = LocalPlatformContext.current
     val defaultTextColor = rememberAdaptiveTextColor(backgroundColor)
     val nameColor = rememberNormalizedColor(message.rawNameColor, backgroundColor)
-    // A Brush inside SpanStyle is not equal-stable and makes the text remeasure every frame while inline
-    // content is present, which stalls the main thread. Per-character colours are plain values.
-    val namePaintColors = remember(message.namePaint, message.nameText, nameColor) {
-        message.namePaint?.colorsFor(message.nameText.length, nameColor)
-    }
     // SpanStyle carries a single shadow; 7TV paints usually have one, so take the first visible one
     val namePaintShadow = remember(message.namePaint) {
         message.namePaint?.shadows?.firstOrNull { it.isVisible }?.let { shadow ->
@@ -353,7 +350,7 @@ private fun PrivMessageText(
 
     // Build annotated string with text content. Keyed on the content-affecting fields only,
     // so layout-only copies (rounded corners, divider) don't rebuild the string.
-    val (annotatedString, messageStart) =
+    val built =
         remember(
             message.id,
             message.timestamp,
@@ -384,6 +381,7 @@ private fun PrivMessageText(
                     )
                 }
             var messageStart = 0
+            var nameRange: TextRange? = null
             val text = buildAnnotatedString {
                 // Channel prefix (for mention tab)
                 if (includePrefix && showChannelPrefix) {
@@ -420,23 +418,18 @@ private fun PrivMessageText(
                     withStyle(
                         SpanStyle(
                             fontWeight = FontWeight.Bold,
-                            // 7TV paints carry a glow; without it a paint reads as flat text
-                            shadow = namePaintShadow,
+                            // Fallback colour for users without a paint, and the base under the painted shader
+                            color = nameColor,
                         ),
                     ) {
                         pushStringAnnotation(
                             tag = "USER",
                             annotation = "${message.userId?.value.orEmpty()}|${message.userName.value}|${message.displayName.value}|${message.channel.value}",
                         )
-                        if (namePaintColors == null) {
-                            withStyle(SpanStyle(color = nameColor)) { append(message.nameText) }
-                        } else {
-                            message.nameText.forEachIndexed { index, char ->
-                                withStyle(SpanStyle(color = namePaintColors.getOrElse(index) { nameColor })) {
-                                    append(char)
-                                }
-                            }
-                        }
+                        // The paint is a shader drawn over these glyphs by the renderer, so the span only
+                        // carries the shape and a fallback colour
+                        nameRange = TextRange(length, length + message.nameText.length)
+                        append(message.nameText)
                         pop()
                     }
                 }
@@ -502,11 +495,18 @@ private fun PrivMessageText(
                     }
                 }
             }
-            text to messageStart
+            BuiltMessageText(text = text, messageStart = messageStart, nameRange = nameRange)
         }
+
+    val annotatedString = built.text
+    val messageStart = built.messageStart
 
     MessageTextWithInlineContent(
         annotatedString = annotatedString,
+        namePaint = message.namePaint,
+        nameRange = built.nameRange,
+        nameColor = nameColor,
+        nameShadow = namePaintShadow,
         badges =
             when {
                 includePrefix -> message.badges
@@ -569,3 +569,9 @@ private fun List<EmoteUi>.contentEmotes(
     start: Int,
     endExclusive: Int,
 ): List<EmoteUi> = filter { it.position.first >= start && it.position.last <= endExclusive }.sortedBy { it.position.first }
+
+private data class BuiltMessageText(
+    val text: AnnotatedString,
+    val messageStart: Int,
+    val nameRange: TextRange?,
+)

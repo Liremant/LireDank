@@ -7,7 +7,18 @@ import kotlinx.serialization.Serializable
 @Keep
 @Serializable
 data class SevenTVCosmeticsResponse(
-    val data: SevenTVCosmeticsData,
+    val data: SevenTVCosmeticsData? = null,
+    /**
+     * GraphQL reports a rejected document here and still answers 200 with `data: null`. Leaving this
+     * unchecked is how a wrong field name silently disabled every paint.
+     */
+    val errors: List<SevenTVCosmeticsError> = emptyList(),
+)
+
+@Keep
+@Serializable
+data class SevenTVCosmeticsError(
+    val message: String,
 )
 
 @Keep

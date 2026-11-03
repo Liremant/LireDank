@@ -13,6 +13,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
@@ -20,7 +21,12 @@ import androidx.compose.ui.layout.MeasurePolicy
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.text
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.TextLayoutResult
@@ -32,6 +38,8 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.unit.dp
+import com.flxrs.dankchat.data.repo.emote.SevenTVPaintUi
+import com.flxrs.dankchat.ui.chat.messages.toBrush
 import com.flxrs.dankchat.ui.chat.EmoteUi
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.persistentMapOf
@@ -57,6 +65,10 @@ internal fun TextWithMeasuredInlineContent(
     style: TextStyle = TextStyle.Default,
     inlineImages: InlineImages? = null,
     knownDimensions: ImmutableMap<String, EmoteDimensions> = persistentMapOf(),
+    namePaint: SevenTVPaintUi? = null,
+    nameRange: TextRange? = null,
+    nameColor: Color = Color.Unspecified,
+    nameShadow: Shadow? = null,
     onTextClick: ((Int) -> Unit)? = null,
     onBackgroundClick: (() -> Unit)? = null,
     onTextLongClick: ((Int) -> Unit)? = null,
@@ -69,6 +81,18 @@ internal fun TextWithMeasuredInlineContent(
     val placeholders = remember(knownDimensions, text, density) { buildPlaceholders(knownDimensions, text, density) }
     val textMeasurer = rememberTextMeasurer(cacheSize = 0)
     val coroutineScope = rememberCoroutineScope()
+
+    // A standalone layout of just the nickname, so the paint shader covers the name and nothing else
+    val paintedNameLayout =
+        remember(namePaint, nameRange, text, style, textMeasurer) {
+            val range = nameRange
+            if (namePaint == null || range == null || range.max <= range.min) {
+                null
+            } else {
+                val name = text.text.substring(range.min, range.max)
+                textMeasurer.measure(AnnotatedString(name), style = style)
+            }
+        }
     val measuredText = remember { mutableStateOf<MeasuredText?>(null) }
     val currentInlineImages = rememberUpdatedState(inlineImages)
     val currentOnTextClick = rememberUpdatedState(onTextClick)
@@ -144,6 +168,19 @@ internal fun TextWithMeasuredInlineContent(
                     val measured = measuredText.value ?: return@drawBehind
                     drawText(measured.layout)
                     inlineImages?.run { drawImages(measured.layout, measured.placeholderIds) }
+
+                    // The paint is a shader over a layout of just the nickname, drawn on top of the name's own
+                    // glyph box - the same idea as Chatterino rendering the name tag into a pixmap with a
+                    // QBrush. A separate layout means the paint can never bleed onto the timestamp or text.
+                    val range = nameRange ?: return@drawBehind
+                    val paint = namePaint ?: return@drawBehind
+                    if (range.max <= range.min) return@drawBehind
+                    val painted = paintedNameLayout ?: return@drawBehind
+                    val firstBox = measured.layout.getBoundingBox(range.min)
+                    val paintedFirstBox = painted.getBoundingBox(0)
+                    val topLeft = Offset(firstBox.left - paintedFirstBox.left, firstBox.top - paintedFirstBox.top)
+                    val brush = paint.toBrush(Size(painted.size.width.toFloat(), painted.size.height.toFloat()), nameColor) ?: return@drawBehind
+                    drawText(painted, brush = brush, topLeft = topLeft, shadow = nameShadow)
                 },
     )
 }

@@ -15,10 +15,12 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -31,6 +33,7 @@ import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
+import com.flxrs.dankchat.data.repo.emote.SevenTVPaintUi
 import com.flxrs.dankchat.ui.chat.BadgeUi
 import com.flxrs.dankchat.ui.chat.EmoteUi
 import com.flxrs.dankchat.ui.chat.emote.EmoteAnimationCoordinator
@@ -50,6 +53,10 @@ private val logger = KotlinLogging.logger("MessageTextRenderer")
 fun MessageTextWithInlineContent(
     annotatedString: AnnotatedString,
     badges: ImmutableList<BadgeUi>,
+    namePaint: SevenTVPaintUi? = null,
+    nameRange: TextRange? = null,
+    nameColor: Color = Color.Unspecified,
+    nameShadow: Shadow? = null,
     emotes: ImmutableList<EmoteUi>,
     fontSize: Float,
     onTextClick: (Int) -> Unit,
@@ -170,6 +177,10 @@ fun MessageTextWithInlineContent(
                 onEmoteClick = onInlineEmoteClick,
                 style = style,
                 knownDimensions = knownDimensions,
+                namePaint = namePaint,
+                nameRange = nameRange,
+                nameColor = nameColor,
+                nameShadow = nameShadow,
                 maxLines = maxLines,
                 overflow = overflow,
                 modifier = modifier.fillMaxWidth(),

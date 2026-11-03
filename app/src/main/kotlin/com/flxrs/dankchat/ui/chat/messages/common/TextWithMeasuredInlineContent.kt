@@ -30,6 +30,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -90,7 +91,9 @@ internal fun TextWithMeasuredInlineContent(
                 null
             } else {
                 val name = text.text.substring(range.min, range.max)
-                textMeasurer.measure(AnnotatedString(name), style = style)
+                // The nickname span is bold, so the standalone layout has to be bold too or the painted glyphs
+                // would be narrower than the ones underneath and drift out of alignment
+                textMeasurer.measure(AnnotatedString(name), style = style.copy(fontWeight = FontWeight.Bold))
             }
         }
     val measuredText = remember { mutableStateOf<MeasuredText?>(null) }
@@ -169,16 +172,20 @@ internal fun TextWithMeasuredInlineContent(
                     drawText(measured.layout)
                     inlineImages?.run { drawImages(measured.layout, measured.placeholderIds) }
 
-                    // The paint is a shader over a layout of just the nickname, drawn on top of the name's own
-                    // glyph box - the same idea as Chatterino rendering the name tag into a pixmap with a
-                    // QBrush. A separate layout means the paint can never bleed onto the timestamp or text.
+                    // The paint replaces the nickname: the span is transparent, so the only glyph pass for the
+                    // name is this one, and it is aligned by baseline - bounding boxes carry different
+                    // leading for the two layouts, which is what made the paint drift.
                     val range = nameRange ?: return@drawBehind
                     val paint = namePaint ?: return@drawBehind
                     if (range.max <= range.min) return@drawBehind
                     val painted = paintedNameLayout ?: return@drawBehind
-                    val firstBox = measured.layout.getBoundingBox(range.min)
-                    val paintedFirstBox = painted.getBoundingBox(0)
-                    val topLeft = Offset(firstBox.left - paintedFirstBox.left, firstBox.top - paintedFirstBox.top)
+                    val line = measured.layout.getLineForOffset(range.min)
+                    val paintedLine = painted.getLineForOffset(0)
+                    val topLeft =
+                        Offset(
+                            x = measured.layout.getBoundingBox(range.min).left,
+                            y = measured.layout.getLineBaseline(line) - painted.getLineBaseline(paintedLine),
+                        )
                     val brush = paint.toBrush(Size(painted.size.width.toFloat(), painted.size.height.toFloat()), nameColor) ?: return@drawBehind
                     drawText(painted, brush = brush, topLeft = topLeft, shadow = nameShadow)
                 },

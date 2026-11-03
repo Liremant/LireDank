@@ -356,6 +356,7 @@ private fun PrivMessageText(
             message.timestamp,
             message.badges,
             message.nameText,
+            message.namePaint,
             message.message,
             message.emotes,
             message.usernameMentions,
@@ -418,8 +419,9 @@ private fun PrivMessageText(
                     withStyle(
                         SpanStyle(
                             fontWeight = FontWeight.Bold,
-                            // Fallback colour for users without a paint, and the base under the painted shader
-                            color = nameColor,
+                            // With a paint the glyphs are drawn once by the shader, so this pass stays invisible;
+                            // it still occupies the width and keeps the tap annotation working
+                            color = if (message.namePaint == null) nameColor else Color.Transparent,
                         ),
                     ) {
                         pushStringAnnotation(

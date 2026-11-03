@@ -98,7 +98,8 @@ class ChatViewModel(
             chat,
             appearanceSettingsDataStore.currentSettings,
             chatSettingsDataStore.currentSettings,
-        ) { messages, appearanceSettings, chatSettings ->
+            sevenTVCosmeticsRepository.version,
+        ) { messages, appearanceSettings, chatSettings, _ ->
             mappingCache.prepare(chatSettings, itemCount = chatSettings.scrollbackLength)
 
             val zone = ZoneId.systemDefault()
@@ -111,7 +112,12 @@ class ChatViewModel(
             for (index in messages.indices) {
                 val item = messages[index]
                 val altBg = appearanceSettings.checkeredMessages && checkeredTracker.isAlternate(item.message.id)
-                val cacheKey = if (altBg) item.alternateMappingCacheKey else item.mappingCacheKey
+                // A row re-maps once its author's 7TV paint becomes known. The paint is part of the key so only
+                // that row is redone - invalidating the whole cache on every resolved user stalled the main thread.
+                val paintKey =
+                    (item.message as? PrivMessage)?.userId?.let { sevenTVCosmeticsRepository.getCached(it)?.paint?.hashCode() } ?: 0
+                val cacheKey =
+                    (if (altBg) item.alternateMappingCacheKey else item.mappingCacheKey) + paintKey
 
                 val mapped =
                     mappingCache.getOrMap(cacheKey) {

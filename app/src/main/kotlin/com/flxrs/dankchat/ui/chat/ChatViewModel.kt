@@ -3,6 +3,7 @@ package com.flxrs.dankchat.ui.chat
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.flxrs.dankchat.data.UserId
 import com.flxrs.dankchat.data.UserName
 import com.flxrs.dankchat.data.api.helix.HelixApiClient
 import com.flxrs.dankchat.data.api.helix.HelixApiException
@@ -72,11 +73,16 @@ class ChatViewModel(
     private val chat: StateFlow<List<ChatItem>> = chatMessageRepository.getChat(channel)
 
     init {
-        // Warm the 7TV cosmetics cache for senders so a paint appears without a network wait per message
-        viewModelScope.launch {
+        // Warm the 7TV cosmetics cache for senders so a paint is already known when their next message is
+        // mapped. Off the main thread and de-duplicated, because a busy channel emits on every message.
+        viewModelScope.launch(dispatchersProvider.default) {
+            val requested = HashSet<UserId>()
             chat.collect { items ->
                 items.forEach { item ->
-                    (item.message as? PrivMessage)?.userId?.let { sevenTVCosmeticsRepository.prefetch(viewModelScope, it) }
+                    val userId = (item.message as? PrivMessage)?.userId ?: return@forEach
+                    if (requested.add(userId)) {
+                        sevenTVCosmeticsRepository.prefetch(viewModelScope, userId)
+                    }
                 }
             }
         }
@@ -92,9 +98,8 @@ class ChatViewModel(
             chat,
             appearanceSettingsDataStore.currentSettings,
             chatSettingsDataStore.currentSettings,
-            sevenTVCosmeticsRepository.version,
-        ) { messages, appearanceSettings, chatSettings, cosmeticsVersion ->
-            mappingCache.prepare(chatSettings, itemCount = chatSettings.scrollbackLength, cosmeticsVersion = cosmeticsVersion)
+        ) { messages, appearanceSettings, chatSettings ->
+            mappingCache.prepare(chatSettings, itemCount = chatSettings.scrollbackLength)
 
             val zone = ZoneId.systemDefault()
             val result = ArrayList<ChatMessageUiState>(messages.size + 8)

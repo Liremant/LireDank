@@ -12,18 +12,14 @@ private const val MAPPING_CACHE_MARGIN = 64
 class ChatMessageMappingCache {
     private val cache = LruCache<String, ChatMessageUiState>(MAPPING_CACHE_MIN_SIZE)
     private var lastChatSettings: ChatSettings? = null
-    private var lastCosmeticsVersion = -1
 
     fun prepare(
         chatSettings: ChatSettings,
         itemCount: Int,
-        cosmeticsVersion: Int = 0,
     ) {
-        // Mapped rows embed the resolved 7TV paint, so a newly resolved user invalidates them
-        if (chatSettings != lastChatSettings || cosmeticsVersion != lastCosmeticsVersion) {
+        if (chatSettings != lastChatSettings) {
             cache.evictAll()
             lastChatSettings = chatSettings
-            lastCosmeticsVersion = cosmeticsVersion
         }
         // The cache must fit the whole list, an LruCache smaller than the sequentially scanned
         // list degrades to a 100% miss rate

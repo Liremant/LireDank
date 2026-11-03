@@ -20,10 +20,14 @@ internal object SevenTVCosmeticsQuery {
                   data {
                     layers {
                       ty {
-                        ... on PaintLayerTypeLinearGradient { angle stops { at color { r g b a } } }
+                        __typename
+                        ... on PaintLayerTypeLinearGradient { angle repeating stops { at color { r g b a } } }
+                        ... on PaintLayerTypeRadialGradient { repeating stops { at color { r g b a } } }
+                        ... on PaintLayerTypeSingleColor { color { r g b a } }
+                        ... on PaintLayerTypeImage { image_url }
                       }
                     }
-                    shadows { color { r g b a } blur }
+                    shadows { color { r g b a } offsetX offsetY blur }
                   }
                 }
                 activeBadge { id name images { url } }

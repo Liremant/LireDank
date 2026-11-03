@@ -1,6 +1,7 @@
 package com.flxrs.dankchat.data.api.seventv.dto
 
 import androidx.annotation.Keep
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Keep
@@ -49,7 +50,10 @@ data class SevenTVPaintData(
     val shadows: List<SevenTVPaintShadow> = emptyList(),
 )
 
-/** Only linear gradients carry usable colour stops; other layer types are ignored. */
+/**
+ * One layer of a paint. 7TV exposes four layer kinds and adds new ones over time, so this mirrors the
+ * shape of the API rather than enumerating known paints.
+ */
 @Keep
 @Serializable
 data class SevenTVPaintLayer(
@@ -59,8 +63,12 @@ data class SevenTVPaintLayer(
 @Keep
 @Serializable
 data class SevenTVPaintLayerType(
+    @SerialName("__typename") val kind: String? = null,
     val angle: Float? = null,
+    val repeating: Boolean = false,
     val stops: List<SevenTVPaintStop> = emptyList(),
+    val color: SevenTVColor? = null,
+    val imageUrl: String? = null,
 )
 
 @Keep
@@ -74,6 +82,8 @@ data class SevenTVPaintStop(
 @Serializable
 data class SevenTVPaintShadow(
     val color: SevenTVColor,
+    val offsetX: Float = 0f,
+    val offsetY: Float = 0f,
     val blur: Float = 0f,
 )
 

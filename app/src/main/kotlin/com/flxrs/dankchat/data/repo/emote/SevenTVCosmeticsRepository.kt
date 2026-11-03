@@ -6,6 +6,7 @@ import com.flxrs.dankchat.data.api.seventv.SevenTVApiClient
 import com.flxrs.dankchat.data.api.seventv.dto.SevenTVColor
 import com.flxrs.dankchat.data.api.seventv.dto.SevenTVCosmeticsResponse
 import com.flxrs.dankchat.data.api.seventv.dto.SevenTVPaint
+import com.flxrs.dankchat.data.api.seventv.dto.SevenTVPaintLayerType
 import com.flxrs.dankchat.di.DispatchersProvider
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.CompletableDeferred
@@ -92,15 +93,32 @@ class SevenTVCosmeticsRepository(
     }
 
     private fun SevenTVPaint.toPaintUi(): SevenTVPaintUi? {
-        // Image layers and paints without colour stops cannot be reproduced as a gradient
-        val layer = data?.layers?.firstOrNull { it.ty?.stops?.isNotEmpty() == true } ?: return null
-        val stops = layer.ty
-            ?.stops
-            .orEmpty()
-            .mapNotNull { stop -> stop.color.toColorInt()?.let { stop.at to it } }
-        if (stops.isEmpty()) return null
-        return SevenTVPaintUi(id = id, stops = stops, angle = layer.ty?.angle ?: 0f)
+        val layer = data?.layers?.firstNotNullOfOrNull { it.ty } ?: return null
+        val shadows = data.shadows.mapNotNull { shadow ->
+            shadow.color.toColorInt()?.let { SevenTVPaintShadowUi(it, shadow.offsetX, shadow.offsetY, shadow.blur) }
+        }
+
+        // Mirrors Chatterino: the shape is chosen by the layer kind, colours are authored by 7TV
+        return when {
+            layer.kind == null || layer.kind.contains("LinearGradient") -> {
+                val stops = layer.toStops()
+                if (stops.isEmpty()) null else SevenTVPaintUi.Linear(stops, layer.angle ?: 0f, layer.repeating, shadows)
+            }
+
+            layer.kind.contains("RadialGradient") -> {
+                val stops = layer.toStops()
+                if (stops.isEmpty()) null else SevenTVPaintUi.Radial(stops, layer.repeating, shadows)
+            }
+
+            layer.kind.contains("SingleColor") -> layer.color?.toColorInt()?.let { SevenTVPaintUi.Solid(it, shadows) }
+
+            layer.kind.contains("Image") -> layer.imageUrl?.let { SevenTVPaintUi.Image(it, shadows) }
+
+            else -> null
+        }
     }
+
+    private fun SevenTVPaintLayerType.toStops(): List<SevenTVPaintStopUi> = stops.mapNotNull { stop -> stop.color.toColorInt()?.let { SevenTVPaintStopUi(stop.at, it) } }.sortedBy { it.at }
 
     private fun SevenTVColor.toColorInt(): Int? {
         if (r !in 0..255 || g !in 0..255 || b !in 0..255 || a !in 0..255) return null
@@ -122,11 +140,4 @@ data class SevenTVCosmetics(
     val paint: SevenTVPaintUi?,
     val badgeUrl: String?,
     val badgeTitle: String?,
-)
-
-/** A gradient paint usable for a nickname. */
-data class SevenTVPaintUi(
-    val id: String,
-    val stops: List<Pair<Float, Int>>,
-    val angle: Float,
 )

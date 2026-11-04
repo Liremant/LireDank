@@ -11,7 +11,10 @@ import coil3.disk.directory
 import coil3.gif.AnimatedImageDecoder
 import coil3.network.cachecontrol.CacheControlCacheStrategy
 import coil3.network.ktor3.KtorNetworkFetcherFactory
+import com.flxrs.dankchat.data.auth.AuthDataStore
 import com.flxrs.dankchat.data.repo.HighlightsRepository
+import com.flxrs.dankchat.data.repo.emote.EmoteRepository
+import com.flxrs.dankchat.data.repo.homies.HomiesBadgesRepository
 import com.flxrs.dankchat.data.repo.IgnoresRepository
 import com.flxrs.dankchat.di.DankChatModule
 import com.flxrs.dankchat.di.DispatchersProvider
@@ -48,6 +51,9 @@ class DankChatApplication :
     private val appearanceSettingsDataStore: AppearanceSettingsDataStore by inject()
     private val connectionCoordinator: ConnectionCoordinator by inject()
     private val batterySaverCoordinator: BatterySaverCoordinator by inject()
+    private val homiesBadgesRepository: HomiesBadgesRepository by inject()
+    private val sevenTVPersonalEmoteRepository: EmoteRepository by inject()
+    private val authDataStore: AuthDataStore by inject()
 
     override fun onCreate() {
         super.onCreate()
@@ -64,6 +70,13 @@ class DankChatApplication :
         ignoresRepository.runMigrationsIfNeeded()
         scope.launch(dispatchersProvider.io) {
             tryClearEmptyFiles(this@DankChatApplication)
+        }
+
+        // Community badge lists and the account's own 7TV emotes are decoration: load them off the main thread
+        // and let every failure stay silent
+        scope.launch(dispatchersProvider.io) {
+            homiesBadgesRepository.load()
+            authDataStore.userIdString?.let { sevenTVPersonalEmoteRepository.refreshSevenTVPersonalEmotes(it) }
         }
     }
 

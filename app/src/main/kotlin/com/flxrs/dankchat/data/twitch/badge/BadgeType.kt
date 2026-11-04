@@ -9,6 +9,7 @@ enum class BadgeType {
     DankChat,
     SharedChat,
     SevenTV,
+    Homies,
     ;
 
     // FrankerFaceZ;

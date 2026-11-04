@@ -143,6 +143,7 @@ private fun ChatSettingsScreen(
                 showTimedOutMessages = settings.showTimedOutMessages,
                 showWhispersInline = settings.showWhispersInline,
                 showTimestamps = settings.showTimestamps,
+                showHomiesBadges = settings.showHomiesBadges,
                 timestampFormat = settings.timestampFormat,
                 onInteraction = onInteraction,
             )
@@ -246,6 +247,7 @@ private fun MessagesCategory(
     showTimedOutMessages: Boolean,
     showWhispersInline: Boolean,
     showTimestamps: Boolean,
+    showHomiesBadges: Boolean,
     timestampFormat: String,
     onInteraction: (ChatSettingsInteraction) -> Unit,
 ) {
@@ -290,6 +292,12 @@ private fun MessagesCategory(
             summary = stringResource(R.string.preference_show_whispers_inline_summary),
             isChecked = showWhispersInline,
             onClick = { onInteraction(ChatSettingsInteraction.ShowWhispersInline(it)) },
+        )
+        SwitchPreferenceItem(
+            title = stringResource(R.string.preference_homies_badges_title),
+            summary = stringResource(R.string.preference_homies_badges_summary),
+            isChecked = showHomiesBadges,
+            onClick = { onInteraction(ChatSettingsInteraction.ShowHomiesBadges(it)) },
         )
         SwitchPreferenceItem(
             title = stringResource(R.string.preference_timestamp_title),

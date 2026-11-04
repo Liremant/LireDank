@@ -51,6 +51,14 @@ sealed class Badge : Parcelable {
         override val type: BadgeType,
     ) : Badge()
 
+    data class HomiesBadge(
+        override val title: String?,
+        override val badgeTag: String?,
+        override val badgeInfo: String?,
+        override val url: String,
+        override val type: BadgeType = BadgeType.Homies,
+    ) : Badge()
+
     data class SevenTVBadge(
         override val title: String?,
         override val badgeTag: String?,

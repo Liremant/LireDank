@@ -93,6 +93,10 @@ class ChatSettingsViewModel(
                     chatSettingsDataStore.update { it.copy(showTimestamps = interaction.value) }
                 }
 
+                is ChatSettingsInteraction.ShowHomiesBadges -> {
+                    chatSettingsDataStore.update { it.copy(showHomiesBadges = interaction.value) }
+                }
+
                 is ChatSettingsInteraction.TimestampFormat -> {
                     chatSettingsDataStore.update { it.copy(timestampFormat = interaction.value) }
                 }
@@ -159,6 +163,7 @@ private fun ChatSettings.toState() = ChatSettingsState(
     showTimedOutMessages = showTimedOutMessages,
     showWhispersInline = showWhispersInline,
     showTimestamps = showTimestamps,
+    showHomiesBadges = showHomiesBadges,
     timestampFormat = timestampFormat,
     visibleBadges = visibleBadges.toImmutableList(),
     visibleEmotes = visibleEmotes.toImmutableList(),

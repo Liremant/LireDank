@@ -6,6 +6,9 @@ import androidx.core.graphics.toColorInt
 import com.flxrs.dankchat.data.DisplayName
 import com.flxrs.dankchat.data.UserId
 import com.flxrs.dankchat.data.UserName
+import com.flxrs.dankchat.data.repo.homies.HomiesBadgesRepository
+import com.flxrs.dankchat.data.api.seventv.SevenTVApiClient
+import com.flxrs.dankchat.data.api.seventv.dto.SevenTVEmoteSetFlags
 import com.flxrs.dankchat.data.api.bttv.dto.BTTVChannelDto
 import com.flxrs.dankchat.data.api.bttv.dto.BTTVEmoteDto
 import com.flxrs.dankchat.data.api.bttv.dto.BTTVGlobalEmoteDto
@@ -69,6 +72,8 @@ class EmoteRepository(
     private val chatSettingsDataStore: ChatSettingsDataStore,
     private val channelRepository: ChannelRepository,
     private val sevenTVCosmeticsRepository: SevenTVCosmeticsRepository,
+    private val homiesBadgesRepository: HomiesBadgesRepository,
+    private val sevenTVApiClient: SevenTVApiClient,
     private val dispatchersProvider: DispatchersProvider,
 ) {
     private val ffzModBadges = ConcurrentHashMap<UserName, String>()
@@ -80,6 +85,12 @@ class EmoteRepository(
     val dankChatBadges: StateFlow<Map<UserId, Badge.DankChatBadge>> = _dankChatBadges.asStateFlow()
 
     private val sevenTvChannelDetails = ConcurrentHashMap<UserName, SevenTVUserDetails>()
+
+    /**
+     * The signed-in account's own 7TV emote set. Chatterino resolves these before every channel emote, so they
+     * are tracked apart from the channel/global sets and merged with the highest priority.
+     */
+    private val personalEmotes = MutableStateFlow<List<GenericEmote>>(emptyList())
 
     private val globalEmoteState = MutableStateFlow(GlobalEmoteState())
     private val channelEmoteStates = ConcurrentHashMap<UserName, MutableStateFlow<ChannelEmoteState>>()
@@ -202,6 +213,8 @@ class EmoteRepository(
             globalState.twitchEmotes.associateByTo(map) { it.code }
             channelState.twitchEmotes.associateByTo(map) { it.code }
         }
+        // Personal emotes win over everything else, matching Chatterino's lookup order
+        personalEmotes.value.associateByTo(map) { it.code }
 
         if (!withTwitch) {
             cachedEmoteMaps[channel] = CachedEmoteMap(globalState, channelState, map)
@@ -360,6 +373,7 @@ class EmoteRepository(
                     }
                 }.orEmpty()
 
+        val showHomiesBadges = chatSettingsDataStore.current().showHomiesBadges
         val sharedChatBadge = getSharedChatBadge(message)
         val allBadges =
             buildList {
@@ -375,6 +389,14 @@ class EmoteRepository(
                 val sevenTVBadge = userId?.let { sevenTVCosmeticsRepository.getCached(it)?.badgeUrl }
                 if (sevenTVBadge != null) {
                     add(Badge.SevenTVBadge(url = sevenTVBadge, title = null, badgeTag = null, badgeInfo = null))
+                }
+                // Community "homies" badges come last, as in Chatterino
+                if (showHomiesBadges) {
+                    userId?.let { id ->
+                        homiesBadgesRepository.badges.value[id].orEmpty().forEach { homie ->
+                            add(Badge.HomiesBadge(url = homie.imageUrl, title = homie.tooltip, badgeTag = null, badgeInfo = null))
+                        }
+                    }
                 }
             }
 
@@ -668,6 +690,41 @@ class EmoteRepository(
     fun clearSevenTVEmotes(channel: UserName) {
         channelEmoteStates[channel]?.update { it.copy(sevenTvEmotes = emptyList()) }
         sevenTvChannelDetails.remove(channel)
+    }
+
+    /**
+     * Loads the signed-in account's personal 7TV emote set. A missing set or a failed request clears nothing
+     * beyond the personal list, so chat keeps working with channel and global emotes.
+     */
+    suspend fun refreshSevenTVPersonalEmotes(userId: UserId) = withContext(dispatchersProvider.default) {
+        val user =
+            sevenTVApiClient
+                .getSevenTVChannelEmotes(userId)
+                .getOrNull()
+                ?.user
+                ?: return@withContext
+
+        val personalSetId =
+            user.emoteSets
+                .firstOrNull { it.flags and SevenTVEmoteSetFlags.PERSONAL != 0L }
+                ?.id
+        if (personalSetId == null) {
+            personalEmotes.value = emptyList()
+            return@withContext
+        }
+
+        val set = sevenTVApiClient.getSevenTVEmoteSet(personalSetId).getOrNull() ?: return@withContext
+        personalEmotes.value =
+            set.emotes.orEmpty().mapNotNull { emote ->
+                parseSevenTVEmote(
+                    emote,
+                    EmoteType.ChannelSevenTVEmote(emote.data?.owner?.displayName, emote.data?.baseName?.takeIf { emote.name != it }),
+                )
+            }
+    }
+
+    suspend fun clearSevenTVPersonalEmotes() {
+        personalEmotes.value = emptyList()
     }
 
     suspend fun setSevenTVEmotes(

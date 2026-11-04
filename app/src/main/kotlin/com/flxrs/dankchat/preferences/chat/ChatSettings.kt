@@ -28,6 +28,8 @@ data class ChatSettings(
     val showTimestamps: Boolean = true,
     val timestampFormat: String = DEFAULT_TIMESTAMP_FORMAT,
     val visibleBadges: List<VisibleBadges> = VisibleBadges.entries,
+    // Community badge lists are a third-party nicety, so they get their own switch on top of the badge filter
+    val showHomiesBadges: Boolean = true,
     val visibleEmotes: List<VisibleThirdPartyEmotes> = VisibleThirdPartyEmotes.entries,
     val allowUnlistedSevenTvEmotes: Boolean = false,
     val sevenTVLiveEmoteUpdates: Boolean = true,
@@ -96,6 +98,7 @@ enum class VisibleBadges {
     DankChat,
     SharedChat,
     SevenTV,
+    Homies,
 }
 
 enum class VisibleThirdPartyEmotes {

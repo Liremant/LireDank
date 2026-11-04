@@ -68,6 +68,10 @@ sealed interface ChatSettingsInteraction {
         val value: Boolean,
     ) : ChatSettingsInteraction
 
+    data class ShowHomiesBadges(
+        val value: Boolean,
+    ) : ChatSettingsInteraction
+
     data class TimestampFormat(
         val value: String,
     ) : ChatSettingsInteraction
@@ -126,6 +130,7 @@ data class ChatSettingsState(
     val showTimedOutMessages: Boolean,
     val showWhispersInline: Boolean,
     val showTimestamps: Boolean,
+    val showHomiesBadges: Boolean,
     val timestampFormat: String,
     val visibleBadges: ImmutableList<VisibleBadges>,
     val visibleEmotes: ImmutableList<VisibleThirdPartyEmotes>,

@@ -1,15 +1,14 @@
 package com.flxrs.dankchat.ui.chat.messages
 
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shader
 import androidx.compose.ui.graphics.ShaderBrush
-import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.asAndroidBitmap
 import com.flxrs.dankchat.data.repo.emote.SevenTVPaintShape
 import com.flxrs.dankchat.data.repo.emote.SevenTVPaintStopUi
 import kotlin.math.abs
@@ -18,34 +17,33 @@ import kotlin.math.hypot
 import kotlin.math.sin
 
 /**
- * Turns one paint layer into a real shader over the nickname box, mirroring the 7TV website.
+ * Builds one paint layer's brush for a box of [size], in that box's own coordinates.
  *
- * The site renders each layer as a CSS background clipped to the text: `linear-gradient(<angle>deg, stops)`,
- * `radial-gradient(<shape>, stops)` and `url(<image>)` with `background-size: 100% 100%`. This is the same idea
- * as a Compose brush sized to the name, so the paint belongs to the name and cannot reach the timestamp or text.
+ * The website renders a paint as a CSS background clipped to the text, so the brush only has to describe the
+ * fill over the name box - the glyphs are the mask. That means no canvas-space geometry is involved here, which
+ * is what kept the paint misaligned before.
  */
 internal fun SevenTVPaintShape.toBrush(
-    rect: Rect,
+    size: Size,
     userColor: Color,
     texture: ImageBitmap? = null,
 ): Brush? = when (this) {
     is SevenTVPaintShape.Linear -> {
-        val (start, end) = gradientLine(rect.size, angle)
-        android.util.Log.i("Paint", "linear rect=$rect start=$start end=$end stops=${stops.size}")
+        val (start, end) = gradientLine(size, angle)
         Brush.linearGradient(
             colorStops = stops.toColorStops(userColor),
-            start = start + rect.topLeft,
-            end = end + rect.topLeft,
+            start = start,
+            end = end,
             tileMode = if (repeating) TileMode.Repeated else TileMode.Clamp,
         )
     }
 
     is SevenTVPaintShape.Radial -> {
         // The site passes only a shape, so CSS defaults apply: centred, sized to the farthest corner
-        val radius = hypot(rect.width, rect.height) / 2f
+        val radius = hypot(size.width, size.height) / 2f
         Brush.radialGradient(
             colorStops = stops.toColorStops(userColor),
-            center = rect.center,
+            center = Offset(size.width / 2f, size.height / 2f),
             radius = if (radius > 0f) radius else 1f,
             tileMode = if (repeating) TileMode.Repeated else TileMode.Clamp,
         )
@@ -53,9 +51,8 @@ internal fun SevenTVPaintShape.toBrush(
 
     is SevenTVPaintShape.Solid -> Brush.linearGradient(listOf(Color(color), Color(color)))
 
-    // One copy stretched over the whole name, matching `background-size: 100% 100%`.
-    // A ShaderBrush caches the shader it built for a size, so the brush must be a new instance per texture frame
-    is SevenTVPaintShape.Image -> texture?.let { bitmap -> textureBrush(bitmap, rect) }
+    // One copy stretched over the whole box, matching `background-size: 100% 100%`
+    is SevenTVPaintShape.Image -> texture?.let { bitmap -> textureBrush(bitmap) }
 }
 
 /**
@@ -80,9 +77,9 @@ internal fun gradientLine(
 /**
  * Stops keep their authored positions, which is what puts the colour transition where the author put it.
  *
- * Paints in the wild do contain stops at the same position, where two colours meet with a hard edge. Compose
- * does not define what a shader does with equal positions and renders such paints unpredictably, so a repeated
- * position is nudged forward by a hair - the same guard Chatterino applies while parsing stops.
+ * Paints in the wild do contain stops at the same position, where two colours meet with a hard edge. Compose does
+ * not define what a shader does with equal positions and renders such paints unpredictably, so a repeated
+ * position is nudged forward by a hair - the guard Chatterino applies while parsing stops.
  */
 private fun List<SevenTVPaintStopUi>.toColorStops(userColor: Color): Array<Pair<Float, Color>> {
     val sorted = sortedBy { it.at }
@@ -96,6 +93,27 @@ private fun List<SevenTVPaintStopUi>.toColorStops(userColor: Color): Array<Pair<
             position.coerceIn(0f, 1f) to overlayOver(userColor, Color(stop.color))
         }.toTypedArray()
 }
+
+/**
+ * A texture maps one bitmap pixel per pixel, so without a scale it would only cover the top-left corner of the
+ * name. The local matrix stretches it over the whole box, which is what `background-size: 100% 100%` does.
+ */
+private fun textureBrush(bitmap: ImageBitmap): Brush =
+    object : ShaderBrush() {
+        override fun createShader(size: Size): Shader {
+            val source = bitmap.asAndroidBitmap()
+            val shader =
+                android.graphics.BitmapShader(
+                    source,
+                    android.graphics.Shader.TileMode.CLAMP,
+                    android.graphics.Shader.TileMode.CLAMP,
+                )
+            val scaleX = if (source.width > 0) size.width / source.width else 1f
+            val scaleY = if (source.height > 0) size.height / source.height else 1f
+            shader.setLocalMatrix(android.graphics.Matrix().apply { setScale(scaleX, scaleY) })
+            return shader
+        }
+    }
 
 /** Semi-transparent stops are laid over the user's own colour, so a paint never makes a name unreadable. */
 private fun overlayOver(
@@ -111,33 +129,5 @@ private fun overlayOver(
         alpha = 1f,
     )
 }
-
-private fun textureBrush(
-    bitmap: ImageBitmap,
-    rect: Rect,
-): Brush =
-    object : ShaderBrush() {
-        override fun createShader(size: Size): Shader {
-            // A shader maps its bitmap one pixel per pixel, so without a scale the texture would only cover the
-            // top-left corner of the name. The local matrix stretches it over the name box, which is what
-            // `background-size: 100% 100%` does on the website.
-            val androidBitmap = bitmap.asAndroidBitmap()
-            val shader =
-                android.graphics.BitmapShader(
-                    androidBitmap,
-                    android.graphics.Shader.TileMode.CLAMP,
-                    android.graphics.Shader.TileMode.CLAMP,
-                )
-            val scaleX = if (androidBitmap.width > 0) rect.width / androidBitmap.width else 1f
-            val scaleY = if (androidBitmap.height > 0) rect.height / androidBitmap.height else 1f
-            shader.setLocalMatrix(
-                android.graphics.Matrix().apply {
-                    setScale(scaleX, scaleY)
-                    postTranslate(rect.left, rect.top)
-                },
-            )
-            return shader
-        }
-    }
 
 private const val STOP_EPSILON = 0.0001f

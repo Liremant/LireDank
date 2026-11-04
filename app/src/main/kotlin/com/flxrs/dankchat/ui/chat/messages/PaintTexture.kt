@@ -7,9 +7,8 @@ import android.graphics.drawable.Drawable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -23,94 +22,82 @@ import coil3.request.SuccessResult
 import coil3.request.allowHardware
 
 /**
- * Loads a 7TV paint texture and exposes one bitmap of its current frame.
+ * Loads the textures of one painted nickname, keeping one bitmap of each current frame.
  *
- * Animated paints ship both a still and an animated file on the CDN, and the animated one decodes into an
- * [Animatable] drawable. Android only advances such a drawable while something keeps drawing it, so a frame loop
- * redraws it into a single reused bitmap and bumps a version counter. The caller recomposes and rebuilds its
- * shader from that same bitmap, so no bitmap is allocated per frame.
+ * Animated paints ship a still and an animated file side by side on the CDN, and the animated one decodes into an
+ * [Animatable] drawable. Android only advances such a drawable while something draws it, so a single frame loop
+ * redraws every animated texture into a reused bitmap at ~30fps.
+ *
+ * All urls are resolved in one place on purpose: a composable inside the caller's per-layer loop would be called a
+ * varying number of times and lose its state.
  */
 @Composable
-internal fun rememberPaintTexture(
-    url: String,
+internal fun rememberPaintTextures(
+    urls: List<String>,
     widthPx: Int,
     heightPx: Int,
-): ImageBitmap? {
+): Map<String, ImageBitmap> {
     val context = LocalPlatformContext.current
     val density = LocalDensity.current
-    val holder = remember(url) { TextureHolder() }
-    var version by remember(url) { mutableIntStateOf(0) }
-    // Match the name box, so the texture is not distorted before the shader stretches it
+    val frames = remember { mutableStateMapOf<String, ImageBitmap>() }
+    val animated = remember { mutableMapOf<String, Drawable>() }
+
     val fallback = with(density) { DEFAULT_TEXTURE_PX.dp.toPx().toInt() }
     val width = if (widthPx > 0) widthPx else fallback
     val height = if (heightPx > 0) heightPx else fallback
 
-    LaunchedEffect(url, width, height) {
-        val drawable =
-            runCatching {
-                val request =
-                    ImageRequest.Builder(context)
-                        .data(url)
-                        // Frames are drawn into a software canvas, a hardware bitmap cannot be read back
-                        .allowHardware(false)
-                        .build()
-                (context.imageLoader.execute(request) as? SuccessResult)?.image?.asDrawable(context.resources)
-            }.getOrNull() ?: return@LaunchedEffect
+    LaunchedEffect(urls, width, height) {
+        if (urls.isEmpty()) return@LaunchedEffect
 
-        holder.attach(drawable, width, height)
-        holder.render()
-        version++
+        urls.forEach { url ->
+            val drawable =
+                runCatching {
+                    val request =
+                        ImageRequest.Builder(context)
+                            .data(url)
+                            // Frames are drawn into a software canvas, a hardware bitmap cannot be read back
+                            .allowHardware(false)
+                            .build()
+                    (context.imageLoader.execute(request) as? SuccessResult)?.image?.asDrawable(context.resources)
+                }.getOrNull() ?: return@forEach
 
-        val animatable = drawable as? Animatable ?: return@LaunchedEffect
-        animatable.start()
+            drawable.toFrame(width, height)?.let { frames[url] = it }
+            (drawable as? Animatable)?.let { animatable ->
+                animated[url] = drawable
+                animatable.start()
+            }
+        }
+
+        if (animated.isEmpty()) return@LaunchedEffect
+
         var lastDrawnAt = 0L
         while (true) {
             withFrameMillis { frameTimeMillis ->
                 if (frameTimeMillis - lastDrawnAt >= FRAME_INTERVAL_MS) {
                     lastDrawnAt = frameTimeMillis
-                    holder.render()
-                    version++
-                    if (version % 30 == 0) android.util.Log.i("PaintTexture", "render v$version $url")
+                    animated.forEach { (url, drawable) ->
+                        drawable.toFrame(width, height)?.let { frames[url] = it }
+                    }
                 }
             }
         }
     }
 
-    // Reading the version subscribes this composable to frame updates
-    return if (version >= 0) holder.image else null
+    return frames
 }
 
-/** One bitmap per visible painted name, redrawn in place from the texture drawable. */
-private class TextureHolder {
-    var image: ImageBitmap? = null
-        private set
-
-    private var drawable: Drawable? = null
-    private var bitmap: Bitmap? = null
-    private var canvas: Canvas? = null
-
-    fun attach(
-        source: Drawable,
-        widthPx: Int,
-        heightPx: Int,
-    ) {
-        drawable = source
-        val current = bitmap
-        if (current != null && current.width == widthPx && current.height == heightPx) return
-        val created = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
-        bitmap = created
-        canvas = Canvas(created)
-        image = created.asImageBitmap()
-    }
-
-    fun render() {
-        val drawable = drawable ?: return
-        val bitmap = bitmap ?: return
-        val canvas = canvas ?: return
-        bitmap.eraseColor(0)
-        drawable.setBounds(0, 0, bitmap.width, bitmap.height)
-        drawable.draw(canvas)
-    }
+/** Renders the drawable's current frame at the requested size. */
+private fun Drawable.toFrame(
+    widthPx: Int,
+    heightPx: Int,
+): ImageBitmap? {
+    if (widthPx <= 0 || heightPx <= 0) return null
+    return runCatching {
+        val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
+        setBounds(0, 0, widthPx, heightPx)
+        draw(Canvas(bitmap))
+        bitmap.asImageBitmap()
+    }.getOrNull()
 }
 
 private const val FRAME_INTERVAL_MS = 33L

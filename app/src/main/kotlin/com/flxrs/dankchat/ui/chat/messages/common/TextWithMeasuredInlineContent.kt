@@ -26,6 +26,9 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ImageBitmap
 import com.flxrs.dankchat.data.repo.emote.SevenTVPaintShape
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.AnnotatedString
@@ -44,7 +47,7 @@ import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.unit.dp
 import com.flxrs.dankchat.data.repo.emote.SevenTVPaintUi
-import com.flxrs.dankchat.ui.chat.messages.rememberPaintTexture
+import com.flxrs.dankchat.ui.chat.messages.rememberPaintTextures
 import com.flxrs.dankchat.ui.chat.messages.toBrush
 import com.flxrs.dankchat.ui.chat.EmoteUi
 import kotlinx.collections.immutable.ImmutableMap
@@ -107,17 +110,17 @@ internal fun TextWithMeasuredInlineContent(
     val currentOnTextLongClick = rememberUpdatedState(onTextLongClick)
     val currentOnEmoteClick = rememberUpdatedState(onEmoteClick)
 
-    // Texture paints are a URL per layer; animated ones advance on the emote animation clock
+    // Texture paints are a URL per layer; animated ones advance on their own frame loop
     val textureUrls =
         remember(namePaint) {
             namePaint?.layers.orEmpty().mapNotNull { layer -> (layer.shape as? SevenTVPaintShape.Image)?.url }.distinct()
         }
-    val textureWidthPx = paintedNameLayout.value?.layout?.size?.width ?: 0
-    val textureHeightPx = paintedNameLayout.value?.layout?.size?.height ?: 0
     val textures =
-        textureUrls
-            .map { url -> url to rememberPaintTexture(url, textureWidthPx, textureHeightPx) }
-            .toMap()
+        rememberPaintTextures(
+            urls = textureUrls,
+            widthPx = paintedNameLayout.value?.layout?.size?.width ?: 0,
+            heightPx = paintedNameLayout.value?.layout?.size?.height ?: 0,
+        )
 
     val measurePolicy =
         remember(text, style, placeholders, maxLines, overflow, textMeasurer, paintedName, nameRange) {
@@ -224,31 +227,33 @@ internal fun TextWithMeasuredInlineContent(
                             y = measured.layout.getLineBaseline(rowLine) - painted.getLineBaseline(paintedLine),
                         )
 
-                    // A shader is anchored in canvas space, while drawText places the glyphs at topLeft. The
-                    // brush therefore has to be built in absolute canvas coordinates - the box of the name once
-                    // it has been placed. Building it from the local box instead painted only the part that
-                    // happened to overlap the origin.
-                    val nameBox =
-                        Rect(
-                            left = topLeft.x,
-                            top = topLeft.y,
-                            right = topLeft.x + painted.size.width,
-                            bottom = topLeft.y + painted.size.height,
-                        )
-
+                    // Same idea as `background-clip: text` on the website: draw the glyphs into their own layer,
+                    // then paint the layer through them with SrcIn. The glyphs are the mask, so no shader
+                    // geometry is involved and the fill can never land beside the name.
+                    val bounds = androidx.compose.ui.geometry.Rect(topLeft, painted.size.toSize())
                     var drawnLayers = 0
+
                     paint.layers.forEachIndexed { index, layer ->
                         val texture = (layer.shape as? SevenTVPaintShape.Image)?.let { textures[it.url] }
-                        val brush = layer.shape.toBrush(nameBox, nameColor, texture) ?: return@forEachIndexed
-                        drawText(
-                            textLayoutResult = painted,
+                        val brush = layer.shape.toBrush(painted.size.toSize(), nameColor, texture) ?: return@forEachIndexed
+
+                        drawIntoCanvas { canvas ->
+                            canvas.saveLayer(bounds, androidx.compose.ui.graphics.Paint())
+                        }
+                        translate(left = topLeft.x, top = topLeft.y) {
+                            drawText(painted, shadow = if (index == 0) nameShadow else null)
+                        }
+                        drawRect(
                             brush = brush,
-                            topLeft = topLeft,
+                            topLeft = bounds.topLeft,
+                            size = bounds.size,
                             alpha = layer.opacity,
-                            shadow = if (index == 0) nameShadow else null,
+                            blendMode = BlendMode.SrcIn,
                         )
+                        drawIntoCanvas { it.restore() }
                         drawnLayers++
                     }
+
                     // A texture that has not loaded yet draws nothing, so the nickname needs a fallback
                     if (drawnLayers == 0) {
                         drawText(painted, color = nameColor, topLeft = topLeft)

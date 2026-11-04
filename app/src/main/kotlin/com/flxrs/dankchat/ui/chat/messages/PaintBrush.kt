@@ -31,6 +31,7 @@ internal fun SevenTVPaintShape.toBrush(
 ): Brush? = when (this) {
     is SevenTVPaintShape.Linear -> {
         val (start, end) = gradientLine(rect.size, angle)
+        android.util.Log.i("Paint", "linear rect=$rect start=$start end=$end stops=${stops.size}")
         Brush.linearGradient(
             colorStops = stops.toColorStops(userColor),
             start = start + rect.topLeft,

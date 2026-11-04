@@ -38,6 +38,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.constrainWidth
@@ -87,19 +88,18 @@ internal fun TextWithMeasuredInlineContent(
     val textMeasurer = rememberTextMeasurer(cacheSize = 0)
     val coroutineScope = rememberCoroutineScope()
 
-    // A standalone layout of just the nickname, so the paint shader covers the name and nothing else
-    val paintedNameLayout =
-        remember(namePaint, nameRange, text, style, textMeasurer) {
+    val paintedName =
+        remember(namePaint, nameRange, text) {
             val range = nameRange
             if (namePaint == null || range == null || range.max <= range.min) {
                 null
             } else {
-                val name = text.text.substring(range.min, range.max)
-                // The nickname span is bold, so the standalone layout has to be bold too or the painted glyphs
-                // would be narrower than the ones underneath and drift out of alignment
-                textMeasurer.measure(AnnotatedString(name), style = style.copy(fontWeight = FontWeight.Bold))
+                text.text.substring(range.min, range.max)
             }
         }
+    // Measured inside the layout pass, because the name has to fit the width the row actually has. An
+    // unconstrained measurement is wider than the row for long names and the paint then gets clipped.
+    val paintedNameLayout = remember { mutableStateOf<PaintedName?>(null) }
     val measuredText = remember { mutableStateOf<MeasuredText?>(null) }
     val currentInlineImages = rememberUpdatedState(inlineImages)
     val currentOnTextClick = rememberUpdatedState(onTextClick)
@@ -112,15 +112,15 @@ internal fun TextWithMeasuredInlineContent(
         remember(namePaint) {
             namePaint?.layers.orEmpty().mapNotNull { layer -> (layer.shape as? SevenTVPaintShape.Image)?.url }.distinct()
         }
-    val textureWidthPx = paintedNameLayout?.size?.width ?: 0
-    val textureHeightPx = paintedNameLayout?.size?.height ?: 0
+    val textureWidthPx = paintedNameLayout.value?.layout?.size?.width ?: 0
+    val textureHeightPx = paintedNameLayout.value?.layout?.size?.height ?: 0
     val textures =
         textureUrls
             .map { url -> url to rememberPaintTexture(url, textureWidthPx, textureHeightPx) }
             .toMap()
 
     val measurePolicy =
-        remember(text, style, placeholders, maxLines, overflow, textMeasurer) {
+        remember(text, style, placeholders, maxLines, overflow, textMeasurer, paintedName, nameRange) {
             MeasurePolicy { _, constraints ->
                 val result =
                     textMeasurer.measure(
@@ -134,6 +134,27 @@ internal fun TextWithMeasuredInlineContent(
                         density = this,
                     )
                 measuredText.value = MeasuredText(result, placeholders.ids)
+
+                val name = paintedName
+                val range = nameRange
+                if (name != null && range != null) {
+                    val nameLeft = result.getBoundingBox(range.min).left
+                    val available = (constraints.maxWidth - nameLeft).toInt().coerceAtLeast(1)
+                    val key = "$name@$available"
+                    if (paintedNameLayout.value?.key != key) {
+                        val nameStyle = style.copy(fontWeight = FontWeight.Bold)
+                        val measured =
+                            textMeasurer.measure(
+                                text = AnnotatedString(name),
+                                style = nameStyle,
+                                maxLines = 1,
+                                constraints = Constraints(maxWidth = available),
+                                layoutDirection = layoutDirection,
+                                density = this,
+                            )
+                        paintedNameLayout.value = PaintedName(key, measured)
+                    }
+                }
                 layout(constraints.constrainWidth(result.size.width), constraints.constrainHeight(result.size.height)) {}
             }
         }
@@ -188,49 +209,49 @@ internal fun TextWithMeasuredInlineContent(
                     drawText(measured.layout)
                     inlineImages?.run { drawImages(measured.layout, measured.placeholderIds) }
 
-                    // The paint replaces the nickname: the span is transparent, so the only glyph pass for the
-                    // name is this one.
+                    // The paint replaces the nickname: the span is transparent, so this is the only glyph pass.
                     val range = nameRange ?: return@drawBehind
                     val paint = namePaint ?: return@drawBehind
                     if (range.max <= range.min) return@drawBehind
-                    val painted = paintedNameLayout ?: return@drawBehind
+                    val painted = paintedNameLayout.value?.layout ?: return@drawBehind
 
-                    // Draw with baseline alignment: the two layouts carry different leading, and aligning by
-                    // box tops made the name drift. The paint still spans the glyph box, not the line box, so
-                    // the outer stops of a multi-colour gradient actually reach the letters.
+                    // Align by baseline: the two layouts carry different leading, aligning by box tops drifted.
                     val rowLine = measured.layout.getLineForOffset(range.min)
                     val paintedLine = painted.getLineForOffset(0)
-                    val offset =
+                    val topLeft =
                         Offset(
                             x = measured.layout.getBoundingBox(range.min).left,
                             y = measured.layout.getLineBaseline(rowLine) - painted.getLineBaseline(paintedLine),
                         )
-                    val glyphRect = painted.glyphBox(TextRange(0, painted.layoutInput.text.length))?.translate(offset) ?: return@drawBehind
 
-                    // Layers stack the way the site stacks backgrounds; shadows belong to the first layer only
+                    // A shader is anchored in canvas space, while drawText places the glyphs at topLeft. The
+                    // brush therefore has to be built in absolute canvas coordinates - the box of the name once
+                    // it has been placed. Building it from the local box instead painted only the part that
+                    // happened to overlap the origin.
+                    val nameBox =
+                        Rect(
+                            left = topLeft.x,
+                            top = topLeft.y,
+                            right = topLeft.x + painted.size.width,
+                            bottom = topLeft.y + painted.size.height,
+                        )
+
                     var drawnLayers = 0
                     paint.layers.forEachIndexed { index, layer ->
-                        // Read per frame so an animated texture rebuilds its shader each frame
                         val texture = (layer.shape as? SevenTVPaintShape.Image)?.let { textures[it.url] }
-                        val brush = layer.shape.toBrush(glyphRect, nameColor, texture) ?: return@forEachIndexed
-                        // Translating the canvas keeps the shader aligned with the glyphs; passing topLeft to
-                        // drawText leaves the shader anchored at the origin and clips the paint
-                        translate(left = offset.x, top = offset.y) {
-                            drawText(
-                                textLayoutResult = painted,
-                                brush = brush,
-                                alpha = layer.opacity,
-                                shadow = if (index == 0) nameShadow else null,
-                            )
-                        }
+                        val brush = layer.shape.toBrush(nameBox, nameColor, texture) ?: return@forEachIndexed
+                        drawText(
+                            textLayoutResult = painted,
+                            brush = brush,
+                            topLeft = topLeft,
+                            alpha = layer.opacity,
+                            shadow = if (index == 0) nameShadow else null,
+                        )
                         drawnLayers++
                     }
-                    // A texture that has not loaded yet draws nothing, so the transparent span needs a fallback
-                    // or the nickname would be invisible for a frame
+                    // A texture that has not loaded yet draws nothing, so the nickname needs a fallback
                     if (drawnLayers == 0) {
-                        translate(left = offset.x, top = offset.y) {
-                            drawText(painted, color = nameColor)
-                        }
+                        drawText(painted, color = nameColor, topLeft = topLeft)
                     }
                 },
     )
@@ -328,23 +349,8 @@ internal fun buildPlaceholders(
 
 internal const val INLINE_CONTENT_TAG = "androidx.compose.foundation.text.inlineContent"
 
-/** Union of the glyph boxes of [range], which is the tight box a paint should cover. */
-private fun Rect.translate(offset: Offset): Rect = Rect(left + offset.x, top + offset.y, right + offset.x, bottom + offset.y)
-
-/** Union of the glyph boxes of [range], which is the tight box a paint should cover. */
-private fun TextLayoutResult.glyphBox(range: TextRange): Rect? {
-    var left = Float.MAX_VALUE
-    var top = Float.MAX_VALUE
-    var right = -Float.MAX_VALUE
-    var bottom = -Float.MAX_VALUE
-    for (offset in range.min until range.max) {
-        val box = getBoundingBox(offset)
-        if (box.width <= 0f || box.height <= 0f) continue
-        left = minOf(left, box.left)
-        top = minOf(top, box.top)
-        right = maxOf(right, box.right)
-        bottom = maxOf(bottom, box.bottom)
-    }
-    if (left > right || top > bottom) return null
-    return Rect(left, top, right, bottom)
-}
+/** A nickname layout measured for one available width. */
+private class PaintedName(
+    val key: String,
+    val layout: TextLayoutResult,
+)

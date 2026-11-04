@@ -4,62 +4,67 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.ImageShader
+import androidx.compose.ui.graphics.Shader
+import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.TileMode
+import com.flxrs.dankchat.data.repo.emote.SevenTVPaintShape
 import com.flxrs.dankchat.data.repo.emote.SevenTVPaintStopUi
-import com.flxrs.dankchat.data.repo.emote.SevenTVPaintUi
 import kotlin.math.abs
 import kotlin.math.cos
-import kotlin.math.max
+import kotlin.math.hypot
 import kotlin.math.sin
 
 /**
- * Builds a real shader for the nickname box, the way Chatterino turns a 7TV paint into a QBrush and paints the
- * name tag with it. The gradient covers [size], so a vertical paint shades each glyph top to bottom and a radial
- * paint is a circle centred on the name. Returns null for textures, which cannot be a colour shader.
+ * Turns one paint layer into a real shader over the nickname box, mirroring the 7TV website.
+ *
+ * The site renders each layer as a CSS background clipped to the text: `linear-gradient(<angle>deg, stops)`,
+ * `radial-gradient(<shape>, stops)` and `url(<image>)` with `background-size: 100% 100%`. This is the same idea
+ * as a Compose brush sized to the name, so the paint belongs to the name and cannot reach the timestamp or text.
  */
-internal fun SevenTVPaintUi.toBrush(
+internal fun SevenTVPaintShape.toBrush(
     size: Size,
     userColor: Color,
+    texture: ImageBitmap? = null,
 ): Brush? = when (this) {
-    is SevenTVPaintUi.Linear -> {
+    is SevenTVPaintShape.Linear -> {
         val (start, end) = gradientLine(size, angle)
         Brush.linearGradient(
             colorStops = stops.toColorStops(userColor),
             start = start,
             end = end,
-            tileMode = tileMode(repeating),
+            tileMode = if (repeating) TileMode.Repeated else TileMode.Clamp,
         )
     }
 
-    is SevenTVPaintUi.Radial -> {
-        // Chatterino centres the circle on the name and uses the larger side as the diameter
-        val radius = max(size.width, size.height) / 2f
+    is SevenTVPaintShape.Radial -> {
+        // The site passes only a shape, so CSS defaults apply: centred, sized to the farthest corner
+        val radius = hypot(size.width, size.height) / 2f
         Brush.radialGradient(
             colorStops = stops.toColorStops(userColor),
             center = Offset(size.width / 2f, size.height / 2f),
             radius = if (radius > 0f) radius else 1f,
-            tileMode = tileMode(repeating),
+            tileMode = if (repeating) TileMode.Repeated else TileMode.Clamp,
         )
     }
 
-    is SevenTVPaintUi.Solid -> Brush.linearGradient(listOf(Color(color), Color(color)))
+    is SevenTVPaintShape.Solid -> Brush.linearGradient(listOf(Color(color), Color(color)))
 
-    is SevenTVPaintUi.Image -> null
+    // One copy stretched over the whole name, matching `background-size: 100% 100%`
+    is SevenTVPaintShape.Image ->
+        texture?.let { bitmap ->
+            object : ShaderBrush() {
+                override fun createShader(size: Size): Shader = ImageShader(bitmap, TileMode.Clamp, TileMode.Clamp)
+            }
+        }
 }
-
-private fun tileMode(repeating: Boolean): TileMode =
-    if (repeating) {
-        TileMode.Repeated
-    } else {
-        TileMode.Clamp
-    }
 
 /**
  * Endpoints of the gradient line across [size] at [angle] degrees.
  *
- * 7TV paints are authored in CSS units, where 0 degrees points up and 90 degrees points right, so the axis
- * follows that convention: 0 shades the glyphs bottom to top, 90 sweeps left to right across the name.
- * The line is as long as the box projected onto that direction (the CSS gradient line).
+ * 7TV authors CSS angles: 0 points up and 90 points right, so a 90 degree paint sweeps across the name while a
+ * 0 degree paint shades the glyphs bottom to top. The line is the box projected onto that direction.
  */
 internal fun gradientLine(
     size: Size,
@@ -75,24 +80,32 @@ internal fun gradientLine(
 }
 
 /**
- * Stops are used at their authored positions: 7TV already lays them out in 0..1 across the gradient line.
- * Rescaling them would shove the colour transition away from where the paint author put it.
+ * Stops keep their authored positions, which is what puts the colour transition where the author put it.
+ *
+ * Paints in the wild do contain stops at the same position, where two colours meet with a hard edge. Compose
+ * does not define what a shader does with equal positions and renders such paints unpredictably, so a repeated
+ * position is nudged forward by a hair - the same guard Chatterino applies while parsing stops.
  */
 private fun List<SevenTVPaintStopUi>.toColorStops(userColor: Color): Array<Pair<Float, Color>> {
     val sorted = sortedBy { it.at }
     if (sorted.isEmpty()) return arrayOf(0f to userColor, 1f to userColor)
 
+    var previous = -1f
     return sorted
-        .map { stop -> stop.at.coerceIn(0f, 1f) to overlayOver(userColor, Color(stop.color)) }
-        .sortedBy { it.first }
-        .toTypedArray()
+        .map { stop ->
+            val position = if (stop.at > previous) stop.at else previous + STOP_EPSILON
+            previous = position
+            position.coerceIn(0f, 1f) to overlayOver(userColor, Color(stop.color))
+        }.toTypedArray()
 }
 
+/** Semi-transparent stops are laid over the user's own colour, so a paint never makes a name unreadable. */
 private fun overlayOver(
     background: Color,
     foreground: Color,
 ): Color {
     val alpha = foreground.alpha
+    if (alpha >= 1f) return foreground
     return Color(
         red = (1f - alpha) * background.red + alpha * foreground.red,
         green = (1f - alpha) * background.green + alpha * foreground.green,
@@ -100,3 +113,5 @@ private fun overlayOver(
         alpha = 1f,
     )
 }
+
+private const val STOP_EPSILON = 0.0001f

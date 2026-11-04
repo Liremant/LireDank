@@ -19,11 +19,13 @@ internal object SevenTVCosmeticsQuery {
                   name
                   data {
                     layers {
+                      opacity
                       ty {
                         __typename
                         ... on PaintLayerTypeLinearGradient { angle repeating stops { at color { r g b a } } }
                         ... on PaintLayerTypeRadialGradient { repeating stops { at color { r g b a } } }
                         ... on PaintLayerTypeSingleColor { color { r g b a } }
+                        ... on PaintLayerTypeImage { images { url } }
                       }
                     }
                     shadows { color { r g b a } offsetX offsetY blur }

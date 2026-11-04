@@ -69,6 +69,7 @@ data class SevenTVPaintData(
 @Serializable
 data class SevenTVPaintLayer(
     val ty: SevenTVPaintLayerType?,
+    val opacity: Float = 1f,
 )
 
 @Keep
@@ -79,7 +80,7 @@ data class SevenTVPaintLayerType(
     val repeating: Boolean = false,
     val stops: List<SevenTVPaintStop> = emptyList(),
     val color: SevenTVColor? = null,
-    val imageUrl: String? = null,
+    val images: List<SevenTVBadgeImage> = emptyList(),
 )
 
 @Keep

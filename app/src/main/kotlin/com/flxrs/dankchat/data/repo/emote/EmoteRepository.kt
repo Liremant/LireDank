@@ -191,7 +191,8 @@ class EmoteRepository(
         // Use cached map for the hot path (without Twitch emotes)
         if (!withTwitch) {
             val cached = cachedEmoteMaps[channel]
-            if (cached != null && cached.globalState === globalState && cached.channelState === channelState) {
+            val personal = personalEmotes.value
+            if (cached != null && cached.globalState === globalState && cached.channelState === channelState && cached.personalEmotes === personal) {
                 return cached.map
             }
         }
@@ -217,7 +218,7 @@ class EmoteRepository(
         personalEmotes.value.associateByTo(map) { it.code }
 
         if (!withTwitch) {
-            cachedEmoteMaps[channel] = CachedEmoteMap(globalState, channelState, map)
+            cachedEmoteMaps[channel] = CachedEmoteMap(globalState, channelState, personalEmotes.value, map)
         }
 
         return map
@@ -424,6 +425,8 @@ class EmoteRepository(
     private data class CachedEmoteMap(
         val globalState: GlobalEmoteState,
         val channelState: ChannelEmoteState,
+        // Personal emotes arrive after the first messages are mapped, so they must invalidate the map too
+        val personalEmotes: List<GenericEmote>,
         val map: Map<String, GenericEmote>,
     )
 

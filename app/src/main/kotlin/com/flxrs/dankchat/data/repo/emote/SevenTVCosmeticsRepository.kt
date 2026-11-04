@@ -64,9 +64,6 @@ class SevenTVCosmeticsRepository(
                     null
                 }
 
-            logger.info {
-                "7TV cosmetics $userId -> paint=${result?.paint?.let { describe(it) } ?: "none"} badge=${result?.badgeUrl != null}"
-            }
             synchronized(cache) {
                 cache.put(userId, CacheEntry(result))
                 inFlight.remove(userId)
@@ -101,31 +98,32 @@ class SevenTVCosmeticsRepository(
             shadow.color.toColorInt()?.let { SevenTVPaintShadowUi(it, shadow.offsetX, shadow.offsetY, shadow.blur) }
         }
 
-        // Mirrors Chatterino: the shape is chosen by the layer kind, colours are authored by 7TV
-        return when {
-            layer.kind == null || layer.kind.contains("LinearGradient") -> {
-                val stops = layer.toStops()
-                if (stops.isEmpty()) null else SevenTVPaintUi.Linear(stops, layer.angle ?: 0f, layer.repeating, shadows)
+        // A paint is a list of layers drawn on top of each other, exactly as the 7TV website renders it
+        val layers =
+            data.layers.mapNotNull { layer ->
+                val shape =
+                    when {
+                        layer.ty == null -> null
+                        layer.ty.kind == null || layer.ty.kind.contains("LinearGradient") -> {
+                            val stops = layer.ty.toStops()
+                            if (stops.isEmpty()) null else SevenTVPaintShape.Linear(stops, layer.ty.angle ?: 0f, layer.ty.repeating)
+                        }
+
+                        layer.ty.kind.contains("RadialGradient") -> {
+                            val stops = layer.ty.toStops()
+                            if (stops.isEmpty()) null else SevenTVPaintShape.Radial(stops, layer.ty.repeating)
+                        }
+
+                        layer.ty.kind.contains("SingleColor") -> layer.ty.color?.toColorInt()?.let { SevenTVPaintShape.Solid(it) }
+
+                        layer.ty.kind.contains("Image") -> layer.ty.images.firstOrNull { it.url.isNotBlank() }?.url?.let { SevenTVPaintShape.Image(it) }
+
+                        else -> null
+                    }
+                shape?.let { SevenTVPaintLayerUi(shape, layer.opacity) }
             }
 
-            layer.kind.contains("RadialGradient") -> {
-                val stops = layer.toStops()
-                if (stops.isEmpty()) null else SevenTVPaintUi.Radial(stops, layer.repeating, shadows)
-            }
-
-            layer.kind.contains("SingleColor") -> layer.color?.toColorInt()?.let { SevenTVPaintUi.Solid(it, shadows) }
-
-            layer.kind.contains("Image") -> layer.imageUrl?.let { SevenTVPaintUi.Image(it, shadows) }
-
-            else -> null
-        }
-    }
-
-    private fun describe(paint: SevenTVPaintUi): String = when (paint) {
-        is SevenTVPaintUi.Linear -> "linear angle=${paint.angle} repeat=${paint.repeating} stops=${paint.stops.map { "${it.at}:${Integer.toHexString(it.color)}" }}"
-        is SevenTVPaintUi.Radial -> "radial repeat=${paint.repeating} stops=${paint.stops.map { "${it.at}:${Integer.toHexString(it.color)}" }}"
-        is SevenTVPaintUi.Solid -> "solid ${Integer.toHexString(paint.color)}"
-        is SevenTVPaintUi.Image -> "image ${paint.url}"
+        return if (layers.isEmpty()) null else SevenTVPaintUi(layers, shadows)
     }
 
     private fun SevenTVPaintLayerType.toStops(): List<SevenTVPaintStopUi> = stops.mapNotNull { stop -> stop.color.toColorInt()?.let { SevenTVPaintStopUi(stop.at, it) } }.sortedBy { it.at }

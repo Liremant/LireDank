@@ -3,6 +3,7 @@ package com.flxrs.dankchat.data.auth
 import android.webkit.CookieManager
 import android.webkit.WebStorage
 import com.flxrs.dankchat.data.UserName
+import com.flxrs.dankchat.data.toUserId
 import com.flxrs.dankchat.data.api.ApiException
 import com.flxrs.dankchat.data.api.auth.AuthApiClient
 import com.flxrs.dankchat.data.repo.IgnoresRepository
@@ -90,6 +91,12 @@ class AuthStateCoordinator(
                             startupValidationHolder.update(StartupValidation.Validated)
                             chatConnector.closeAndReconnect(chatChannelProvider.channels.value.orEmpty())
                             channelDataCoordinator.reloadGlobalData()
+                            // Personal 7TV emotes belong to the account that just signed in
+                            // Personal emotes live in the emote repository's own flow, which invalidates the
+                            // per-channel lookup map, so already-loaded messages are re-parsed too
+                            settings.userId?.toUserId()?.let { id ->
+                                emoteRepository.refreshSevenTVPersonalEmotes(id)
+                            }
                             settings.userName?.let { name ->
                                 _events.send(AuthEvent.LoggedIn(UserName(name)))
                             }
@@ -98,6 +105,8 @@ class AuthStateCoordinator(
                         else -> {
                             channelDataCoordinator.cancelGlobalLoading()
                             emoteRepository.clearTwitchEmotes()
+                            // The next account must not inherit these
+                            emoteRepository.clearSevenTVPersonalEmotes()
                             clearUserData()
                             chatConnector.closeAndReconnect(chatChannelProvider.channels.value.orEmpty())
                         }

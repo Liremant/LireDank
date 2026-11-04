@@ -5,6 +5,7 @@ import androidx.compose.foundation.gestures.PressGestureScope
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.mutableStateOf
@@ -23,6 +24,16 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.text
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import coil3.compose.LocalPlatformContext
+import androidx.core.graphics.drawable.toBitmap
+import coil3.asDrawable
+import coil3.imageLoader
+import coil3.request.ImageRequest
+import coil3.request.SuccessResult
+import com.flxrs.dankchat.data.repo.emote.SevenTVPaintShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.AnnotatedString
@@ -102,6 +113,23 @@ internal fun TextWithMeasuredInlineContent(
     val currentOnBackgroundClick = rememberUpdatedState(onBackgroundClick)
     val currentOnTextLongClick = rememberUpdatedState(onTextLongClick)
     val currentOnEmoteClick = rememberUpdatedState(onEmoteClick)
+
+    // Texture paints are a URL per layer; they are loaded once and handed to the shader as a bitmap
+    val textureUrls =
+        remember(namePaint) {
+            namePaint?.layers.orEmpty().mapNotNull { layer -> (layer.shape as? SevenTVPaintShape.Image)?.url }.distinct()
+        }
+    val textures = remember(textureUrls) { mutableStateMapOf<String, ImageBitmap>() }
+    val platformContext = LocalPlatformContext.current
+    LaunchedEffect(textureUrls) {
+        textureUrls.forEach { url ->
+            if (textures.containsKey(url)) return@forEach
+            runCatching { platformContext.imageLoader.execute(ImageRequest.Builder(platformContext).data(url).build()) }
+                .getOrNull()
+                ?.let { result -> (result as? SuccessResult)?.image?.asDrawable(platformContext.resources)?.toBitmap()?.asImageBitmap() }
+                ?.let { bitmap -> textures[url] = bitmap }
+        }
+    }
 
     val measurePolicy =
         remember(text, style, placeholders, maxLines, overflow, textMeasurer) {
@@ -186,8 +214,26 @@ internal fun TextWithMeasuredInlineContent(
                             x = measured.layout.getBoundingBox(range.min).left,
                             y = measured.layout.getLineBaseline(line) - painted.getLineBaseline(paintedLine),
                         )
-                    val brush = paint.toBrush(Size(painted.size.width.toFloat(), painted.size.height.toFloat()), nameColor) ?: return@drawBehind
-                    drawText(painted, brush = brush, topLeft = topLeft, shadow = nameShadow)
+                    val size = Size(painted.size.width.toFloat(), painted.size.height.toFloat())
+                    // Layers stack the way the site stacks backgrounds; shadows belong to the first layer only
+                    var drawnLayers = 0
+                    paint.layers.forEachIndexed { index, layer ->
+                        val texture = (layer.shape as? SevenTVPaintShape.Image)?.let { textures[it.url] }
+                        val brush = layer.shape.toBrush(size, nameColor, texture) ?: return@forEachIndexed
+                        drawText(
+                            textLayoutResult = painted,
+                            brush = brush,
+                            topLeft = topLeft,
+                            alpha = layer.opacity,
+                            shadow = if (index == 0) nameShadow else null,
+                        )
+                        drawnLayers++
+                    }
+                    // A texture that has not loaded yet draws nothing, so the transparent span needs a fallback
+                    // or the nickname would be invisible for a frame
+                    if (drawnLayers == 0) {
+                        drawText(painted, color = nameColor, topLeft = topLeft)
+                    }
                 },
     )
 }

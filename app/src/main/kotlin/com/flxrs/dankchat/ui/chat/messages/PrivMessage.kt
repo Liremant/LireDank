@@ -421,7 +421,7 @@ private fun PrivMessageText(
                             fontWeight = FontWeight.Bold,
                             // With a paint the glyphs are drawn once by the shader, so this pass stays invisible;
                             // it still occupies the width and keeps the tap annotation working
-                            color = if (message.namePaint == null) nameColor else Color.Transparent,
+                            color = if (message.namePaint?.isEmpty != false) nameColor else Color.Transparent,
                         ),
                     ) {
                         pushStringAnnotation(

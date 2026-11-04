@@ -189,29 +189,33 @@ internal fun TextWithMeasuredInlineContent(
                     inlineImages?.run { drawImages(measured.layout, measured.placeholderIds) }
 
                     // The paint replaces the nickname: the span is transparent, so the only glyph pass for the
-                    // name is this one, and it is aligned by baseline - bounding boxes carry different
-                    // leading for the two layouts, which is what made the paint drift.
+                    // name is this one.
                     val range = nameRange ?: return@drawBehind
                     val paint = namePaint ?: return@drawBehind
                     if (range.max <= range.min) return@drawBehind
                     val painted = paintedNameLayout ?: return@drawBehind
-                    val line = measured.layout.getLineForOffset(range.min)
+
+                    // Draw with baseline alignment: the two layouts carry different leading, and aligning by
+                    // box tops made the name drift. The paint still spans the glyph box, not the line box, so
+                    // the outer stops of a multi-colour gradient actually reach the letters.
+                    val rowLine = measured.layout.getLineForOffset(range.min)
                     val paintedLine = painted.getLineForOffset(0)
-                    val topLeft =
+                    val offset =
                         Offset(
                             x = measured.layout.getBoundingBox(range.min).left,
-                            y = measured.layout.getLineBaseline(line) - painted.getLineBaseline(paintedLine),
+                            y = measured.layout.getLineBaseline(rowLine) - painted.getLineBaseline(paintedLine),
                         )
-                    val size = Size(painted.size.width.toFloat(), painted.size.height.toFloat())
+                    val glyphRect = painted.glyphBox(TextRange(0, painted.layoutInput.text.length))?.translate(offset) ?: return@drawBehind
+
                     // Layers stack the way the site stacks backgrounds; shadows belong to the first layer only
                     var drawnLayers = 0
                     paint.layers.forEachIndexed { index, layer ->
-                        // Keyed by the current frame so an animated texture rebuilds its shader each frame
+                        // Read per frame so an animated texture rebuilds its shader each frame
                         val texture = (layer.shape as? SevenTVPaintShape.Image)?.let { textures[it.url] }
-                        val brush = layer.shape.toBrush(size, nameColor, texture) ?: return@forEachIndexed
+                        val brush = layer.shape.toBrush(glyphRect, nameColor, texture) ?: return@forEachIndexed
                         // Translating the canvas keeps the shader aligned with the glyphs; passing topLeft to
                         // drawText leaves the shader anchored at the origin and clips the paint
-                        translate(left = topLeft.x, top = topLeft.y) {
+                        translate(left = offset.x, top = offset.y) {
                             drawText(
                                 textLayoutResult = painted,
                                 brush = brush,
@@ -224,7 +228,7 @@ internal fun TextWithMeasuredInlineContent(
                     // A texture that has not loaded yet draws nothing, so the transparent span needs a fallback
                     // or the nickname would be invisible for a frame
                     if (drawnLayers == 0) {
-                        translate(left = topLeft.x, top = topLeft.y) {
+                        translate(left = offset.x, top = offset.y) {
                             drawText(painted, color = nameColor)
                         }
                     }
@@ -323,3 +327,24 @@ internal fun buildPlaceholders(
 }
 
 internal const val INLINE_CONTENT_TAG = "androidx.compose.foundation.text.inlineContent"
+
+/** Union of the glyph boxes of [range], which is the tight box a paint should cover. */
+private fun Rect.translate(offset: Offset): Rect = Rect(left + offset.x, top + offset.y, right + offset.x, bottom + offset.y)
+
+/** Union of the glyph boxes of [range], which is the tight box a paint should cover. */
+private fun TextLayoutResult.glyphBox(range: TextRange): Rect? {
+    var left = Float.MAX_VALUE
+    var top = Float.MAX_VALUE
+    var right = -Float.MAX_VALUE
+    var bottom = -Float.MAX_VALUE
+    for (offset in range.min until range.max) {
+        val box = getBoundingBox(offset)
+        if (box.width <= 0f || box.height <= 0f) continue
+        left = minOf(left, box.left)
+        top = minOf(top, box.top)
+        right = maxOf(right, box.right)
+        bottom = maxOf(bottom, box.bottom)
+    }
+    if (left > right || top > bottom) return null
+    return Rect(left, top, right, bottom)
+}

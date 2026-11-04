@@ -1,6 +1,7 @@
 package com.flxrs.dankchat.ui.chat.messages
 
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -24,26 +25,26 @@ import kotlin.math.sin
  * as a Compose brush sized to the name, so the paint belongs to the name and cannot reach the timestamp or text.
  */
 internal fun SevenTVPaintShape.toBrush(
-    size: Size,
+    rect: Rect,
     userColor: Color,
     texture: ImageBitmap? = null,
 ): Brush? = when (this) {
     is SevenTVPaintShape.Linear -> {
-        val (start, end) = gradientLine(size, angle)
+        val (start, end) = gradientLine(rect.size, angle)
         Brush.linearGradient(
             colorStops = stops.toColorStops(userColor),
-            start = start,
-            end = end,
+            start = start + rect.topLeft,
+            end = end + rect.topLeft,
             tileMode = if (repeating) TileMode.Repeated else TileMode.Clamp,
         )
     }
 
     is SevenTVPaintShape.Radial -> {
         // The site passes only a shape, so CSS defaults apply: centred, sized to the farthest corner
-        val radius = hypot(size.width, size.height) / 2f
+        val radius = hypot(rect.width, rect.height) / 2f
         Brush.radialGradient(
             colorStops = stops.toColorStops(userColor),
-            center = Offset(size.width / 2f, size.height / 2f),
+            center = rect.center,
             radius = if (radius > 0f) radius else 1f,
             tileMode = if (repeating) TileMode.Repeated else TileMode.Clamp,
         )
@@ -53,7 +54,7 @@ internal fun SevenTVPaintShape.toBrush(
 
     // One copy stretched over the whole name, matching `background-size: 100% 100%`.
     // A ShaderBrush caches the shader it built for a size, so the brush must be a new instance per texture frame
-    is SevenTVPaintShape.Image -> texture?.let { bitmap -> textureBrush(bitmap) }
+    is SevenTVPaintShape.Image -> texture?.let { bitmap -> textureBrush(bitmap, rect) }
 }
 
 /**
@@ -110,7 +111,10 @@ private fun overlayOver(
     )
 }
 
-private fun textureBrush(bitmap: ImageBitmap): Brush =
+private fun textureBrush(
+    bitmap: ImageBitmap,
+    rect: Rect,
+): Brush =
     object : ShaderBrush() {
         override fun createShader(size: Size): Shader {
             // A shader maps its bitmap one pixel per pixel, so without a scale the texture would only cover the
@@ -123,9 +127,14 @@ private fun textureBrush(bitmap: ImageBitmap): Brush =
                     android.graphics.Shader.TileMode.CLAMP,
                     android.graphics.Shader.TileMode.CLAMP,
                 )
-            val scaleX = if (androidBitmap.width > 0) size.width / androidBitmap.width else 1f
-            val scaleY = if (androidBitmap.height > 0) size.height / androidBitmap.height else 1f
-            shader.setLocalMatrix(android.graphics.Matrix().apply { setScale(scaleX, scaleY) })
+            val scaleX = if (androidBitmap.width > 0) rect.width / androidBitmap.width else 1f
+            val scaleY = if (androidBitmap.height > 0) rect.height / androidBitmap.height else 1f
+            shader.setLocalMatrix(
+                android.graphics.Matrix().apply {
+                    setScale(scaleX, scaleY)
+                    postTranslate(rect.left, rect.top)
+                },
+            )
             return shader
         }
     }

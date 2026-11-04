@@ -116,7 +116,12 @@ class SevenTVCosmeticsRepository(
 
                         layer.ty.kind.contains("SingleColor") -> layer.ty.color?.toColorInt()?.let { SevenTVPaintShape.Solid(it) }
 
-                        layer.ty.kind.contains("Image") -> layer.ty.images.firstOrNull { it.url.isNotBlank() }?.url?.let { SevenTVPaintShape.Image(it) }
+                        layer.ty.kind.contains("Image") -> {
+                            // Animated paints ship a still and an animated file side by side; take the animated one
+                            val animated = layer.ty.images.filter { it.frameCount > 1 }
+                            val chosen = (animated.ifEmpty { layer.ty.images }).firstOrNull { it.url.isNotBlank() }
+                            chosen?.url?.let { SevenTVPaintShape.Image(it) }
+                        }
 
                         else -> null
                     }

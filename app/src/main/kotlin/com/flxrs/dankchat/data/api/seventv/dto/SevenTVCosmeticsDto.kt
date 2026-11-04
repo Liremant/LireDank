@@ -120,4 +120,6 @@ data class SevenTVBadge(
 @Serializable
 data class SevenTVBadgeImage(
     val url: String,
+    /** Frames in the file; more than one means the paint animates. */
+    val frameCount: Int = 1,
 )

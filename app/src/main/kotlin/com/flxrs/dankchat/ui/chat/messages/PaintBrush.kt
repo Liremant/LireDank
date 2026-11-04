@@ -5,9 +5,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.ImageShader
 import androidx.compose.ui.graphics.Shader
 import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.TileMode
 import com.flxrs.dankchat.data.repo.emote.SevenTVPaintShape
 import com.flxrs.dankchat.data.repo.emote.SevenTVPaintStopUi
@@ -51,13 +51,9 @@ internal fun SevenTVPaintShape.toBrush(
 
     is SevenTVPaintShape.Solid -> Brush.linearGradient(listOf(Color(color), Color(color)))
 
-    // One copy stretched over the whole name, matching `background-size: 100% 100%`
-    is SevenTVPaintShape.Image ->
-        texture?.let { bitmap ->
-            object : ShaderBrush() {
-                override fun createShader(size: Size): Shader = ImageShader(bitmap, TileMode.Clamp, TileMode.Clamp)
-            }
-        }
+    // One copy stretched over the whole name, matching `background-size: 100% 100%`.
+    // A ShaderBrush caches the shader it built for a size, so the brush must be a new instance per texture frame
+    is SevenTVPaintShape.Image -> texture?.let { bitmap -> textureBrush(bitmap) }
 }
 
 /**
@@ -113,5 +109,25 @@ private fun overlayOver(
         alpha = 1f,
     )
 }
+
+private fun textureBrush(bitmap: ImageBitmap): Brush =
+    object : ShaderBrush() {
+        override fun createShader(size: Size): Shader {
+            // A shader maps its bitmap one pixel per pixel, so without a scale the texture would only cover the
+            // top-left corner of the name. The local matrix stretches it over the name box, which is what
+            // `background-size: 100% 100%` does on the website.
+            val androidBitmap = bitmap.asAndroidBitmap()
+            val shader =
+                android.graphics.BitmapShader(
+                    androidBitmap,
+                    android.graphics.Shader.TileMode.CLAMP,
+                    android.graphics.Shader.TileMode.CLAMP,
+                )
+            val scaleX = if (androidBitmap.width > 0) size.width / androidBitmap.width else 1f
+            val scaleY = if (androidBitmap.height > 0) size.height / androidBitmap.height else 1f
+            shader.setLocalMatrix(android.graphics.Matrix().apply { setScale(scaleX, scaleY) })
+            return shader
+        }
+    }
 
 private const val STOP_EPSILON = 0.0001f

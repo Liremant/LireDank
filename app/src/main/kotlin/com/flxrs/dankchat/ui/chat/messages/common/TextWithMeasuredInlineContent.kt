@@ -14,6 +14,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
@@ -111,8 +112,12 @@ internal fun TextWithMeasuredInlineContent(
         remember(namePaint) {
             namePaint?.layers.orEmpty().mapNotNull { layer -> (layer.shape as? SevenTVPaintShape.Image)?.url }.distinct()
         }
-    val textureSizePx = paintedNameLayout?.size?.height ?: 0
-    val textures = textureUrls.map { url -> url to rememberPaintTexture(url, textureSizePx) }.toMap()
+    val textureWidthPx = paintedNameLayout?.size?.width ?: 0
+    val textureHeightPx = paintedNameLayout?.size?.height ?: 0
+    val textures =
+        textureUrls
+            .map { url -> url to rememberPaintTexture(url, textureWidthPx, textureHeightPx) }
+            .toMap()
 
     val measurePolicy =
         remember(text, style, placeholders, maxLines, overflow, textMeasurer) {
@@ -204,19 +209,24 @@ internal fun TextWithMeasuredInlineContent(
                         // Keyed by the current frame so an animated texture rebuilds its shader each frame
                         val texture = (layer.shape as? SevenTVPaintShape.Image)?.let { textures[it.url] }
                         val brush = layer.shape.toBrush(size, nameColor, texture) ?: return@forEachIndexed
-                        drawText(
-                            textLayoutResult = painted,
-                            brush = brush,
-                            topLeft = topLeft,
-                            alpha = layer.opacity,
-                            shadow = if (index == 0) nameShadow else null,
-                        )
+                        // Translating the canvas keeps the shader aligned with the glyphs; passing topLeft to
+                        // drawText leaves the shader anchored at the origin and clips the paint
+                        translate(left = topLeft.x, top = topLeft.y) {
+                            drawText(
+                                textLayoutResult = painted,
+                                brush = brush,
+                                alpha = layer.opacity,
+                                shadow = if (index == 0) nameShadow else null,
+                            )
+                        }
                         drawnLayers++
                     }
                     // A texture that has not loaded yet draws nothing, so the transparent span needs a fallback
                     // or the nickname would be invisible for a frame
                     if (drawnLayers == 0) {
-                        drawText(painted, color = nameColor, topLeft = topLeft)
+                        translate(left = topLeft.x, top = topLeft.y) {
+                            drawText(painted, color = nameColor)
+                        }
                     }
                 },
     )

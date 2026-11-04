@@ -33,15 +33,19 @@ import coil3.request.allowHardware
 @Composable
 internal fun rememberPaintTexture(
     url: String,
-    targetSizePx: Int,
+    widthPx: Int,
+    heightPx: Int,
 ): ImageBitmap? {
     val context = LocalPlatformContext.current
     val density = LocalDensity.current
     val holder = remember(url) { TextureHolder() }
     var version by remember(url) { mutableIntStateOf(0) }
-    val size = if (targetSizePx > 0) targetSizePx else with(density) { DEFAULT_TEXTURE_PX.dp.toPx().toInt() }
+    // Match the name box, so the texture is not distorted before the shader stretches it
+    val fallback = with(density) { DEFAULT_TEXTURE_PX.dp.toPx().toInt() }
+    val width = if (widthPx > 0) widthPx else fallback
+    val height = if (heightPx > 0) heightPx else fallback
 
-    LaunchedEffect(url, size) {
+    LaunchedEffect(url, width, height) {
         val drawable =
             runCatching {
                 val request =
@@ -53,7 +57,7 @@ internal fun rememberPaintTexture(
                 (context.imageLoader.execute(request) as? SuccessResult)?.image?.asDrawable(context.resources)
             }.getOrNull() ?: return@LaunchedEffect
 
-        holder.attach(drawable, size)
+        holder.attach(drawable, width, height)
         holder.render()
         version++
 
@@ -87,12 +91,13 @@ private class TextureHolder {
 
     fun attach(
         source: Drawable,
-        sizePx: Int,
+        widthPx: Int,
+        heightPx: Int,
     ) {
         drawable = source
         val current = bitmap
-        if (current != null && current.width == sizePx && current.height == sizePx) return
-        val created = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+        if (current != null && current.width == widthPx && current.height == heightPx) return
+        val created = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         bitmap = created
         canvas = Canvas(created)
         image = created.asImageBitmap()

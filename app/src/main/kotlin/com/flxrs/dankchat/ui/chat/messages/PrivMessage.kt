@@ -24,10 +24,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -339,12 +337,6 @@ private fun PrivMessageText(
     val context = LocalPlatformContext.current
     val defaultTextColor = rememberAdaptiveTextColor(backgroundColor)
     val nameColor = rememberNormalizedColor(message.rawNameColor, backgroundColor)
-    // SpanStyle carries a single shadow; 7TV paints usually have one, so take the first visible one
-    val namePaintShadow = remember(message.namePaint) {
-        message.namePaint?.shadows?.firstOrNull { it.isVisible }?.let { shadow ->
-            Shadow(color = Color(shadow.color), offset = Offset(shadow.offsetX, shadow.offsetY), blurRadius = shadow.blur)
-        }
-    }
     val linkColor = rememberAdaptiveLinkColor(backgroundColor)
     val backgroundArgb = effectiveBackgroundArgb(backgroundColor)
 
@@ -508,7 +500,6 @@ private fun PrivMessageText(
         namePaint = message.namePaint,
         nameRange = built.nameRange,
         nameColor = nameColor,
-        nameShadow = namePaintShadow,
         badges =
             when {
                 includePrefix -> message.badges

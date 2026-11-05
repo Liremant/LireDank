@@ -31,6 +31,7 @@ sealed interface SevenTVPaintShape {
     data class Radial(
         val stops: List<SevenTVPaintStopUi>,
         val repeating: Boolean = false,
+        val shape: SevenTVPaintRadialShapeUi = SevenTVPaintRadialShapeUi.ELLIPSE,
     ) : SevenTVPaintShape
 
     data class Solid(
@@ -41,6 +42,11 @@ sealed interface SevenTVPaintShape {
     data class Image(
         val url: String,
     ) : SevenTVPaintShape
+}
+
+enum class SevenTVPaintRadialShapeUi {
+    CIRCLE,
+    ELLIPSE,
 }
 
 data class SevenTVPaintStopUi(

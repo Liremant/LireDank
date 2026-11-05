@@ -6,9 +6,6 @@ import androidx.core.graphics.toColorInt
 import com.flxrs.dankchat.data.DisplayName
 import com.flxrs.dankchat.data.UserId
 import com.flxrs.dankchat.data.UserName
-import com.flxrs.dankchat.data.repo.homies.HomiesBadgesRepository
-import com.flxrs.dankchat.data.api.seventv.SevenTVApiClient
-import com.flxrs.dankchat.data.api.seventv.dto.SevenTVEmoteSetFlags
 import com.flxrs.dankchat.data.api.bttv.dto.BTTVChannelDto
 import com.flxrs.dankchat.data.api.bttv.dto.BTTVEmoteDto
 import com.flxrs.dankchat.data.api.bttv.dto.BTTVGlobalEmoteDto
@@ -20,14 +17,17 @@ import com.flxrs.dankchat.data.api.helix.HelixApiClient
 import com.flxrs.dankchat.data.api.helix.dto.ChannelEmoteDto
 import com.flxrs.dankchat.data.api.helix.dto.CheermoteSetDto
 import com.flxrs.dankchat.data.api.helix.dto.UserEmoteDto
+import com.flxrs.dankchat.data.api.seventv.SevenTVApiClient
 import com.flxrs.dankchat.data.api.seventv.SevenTVUserDetails
 import com.flxrs.dankchat.data.api.seventv.dto.SevenTVEmoteDto
 import com.flxrs.dankchat.data.api.seventv.dto.SevenTVEmoteFileDto
 import com.flxrs.dankchat.data.api.seventv.dto.SevenTVEmoteSetDto
+import com.flxrs.dankchat.data.api.seventv.dto.SevenTVEmoteSetFlags
 import com.flxrs.dankchat.data.api.seventv.dto.SevenTVUserConnection
 import com.flxrs.dankchat.data.api.seventv.dto.SevenTVUserDto
 import com.flxrs.dankchat.data.api.seventv.eventapi.SevenTVEventMessage
 import com.flxrs.dankchat.data.repo.channel.ChannelRepository
+import com.flxrs.dankchat.data.repo.homies.HomiesBadgesRepository
 import com.flxrs.dankchat.data.toUserId
 import com.flxrs.dankchat.data.twitch.badge.Badge
 import com.flxrs.dankchat.data.twitch.badge.BadgeSet

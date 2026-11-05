@@ -7,6 +7,7 @@ import com.flxrs.dankchat.data.api.seventv.dto.SevenTVColor
 import com.flxrs.dankchat.data.api.seventv.dto.SevenTVCosmeticsResponse
 import com.flxrs.dankchat.data.api.seventv.dto.SevenTVPaint
 import com.flxrs.dankchat.data.api.seventv.dto.SevenTVPaintLayerType
+import com.flxrs.dankchat.data.api.seventv.dto.SevenTVPaintRadialShape
 import com.flxrs.dankchat.di.DispatchersProvider
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.CompletableDeferred
@@ -92,18 +93,18 @@ class SevenTVCosmeticsRepository(
         }
     }
 
-    private fun SevenTVPaint.toPaintUi(): SevenTVPaintUi? {
-        val layer = data?.layers?.firstNotNullOfOrNull { it.ty } ?: return null
-        val shadows = data.shadows.mapNotNull { shadow ->
+    internal fun SevenTVPaint.toPaintUi(): SevenTVPaintUi? {
+        val shadows = data?.shadows.orEmpty().mapNotNull { shadow ->
             shadow.color.toColorInt()?.let { SevenTVPaintShadowUi(it, shadow.offsetX, shadow.offsetY, shadow.blur) }
         }
 
         // A paint is a list of layers drawn on top of each other, exactly as the 7TV website renders it
         val layers =
-            data.layers.mapNotNull { layer ->
+            data?.layers.orEmpty().mapNotNull { layer ->
                 val shape =
                     when {
                         layer.ty == null -> null
+
                         layer.ty.kind == null || layer.ty.kind.contains("LinearGradient") -> {
                             val stops = layer.ty.toStops()
                             if (stops.isEmpty()) null else SevenTVPaintShape.Linear(stops, layer.ty.angle ?: 0f, layer.ty.repeating)
@@ -111,16 +112,23 @@ class SevenTVCosmeticsRepository(
 
                         layer.ty.kind.contains("RadialGradient") -> {
                             val stops = layer.ty.toStops()
-                            if (stops.isEmpty()) null else SevenTVPaintShape.Radial(stops, layer.ty.repeating)
+                            val shape = when (layer.ty.shape) {
+                                SevenTVPaintRadialShape.CIRCLE -> SevenTVPaintRadialShapeUi.CIRCLE
+                                SevenTVPaintRadialShape.ELLIPSE, null -> SevenTVPaintRadialShapeUi.ELLIPSE
+                            }
+                            if (stops.isEmpty()) null else SevenTVPaintShape.Radial(stops, layer.ty.repeating, shape)
                         }
 
-                        layer.ty.kind.contains("SingleColor") -> layer.ty.color?.toColorInt()?.let { SevenTVPaintShape.Solid(it) }
+                        layer.ty.kind.contains("SingleColor") ->
+                            layer.ty.color
+                                ?.toColorInt()
+                                ?.let { SevenTVPaintShape.Solid(it) }
 
                         layer.ty.kind.contains("Image") -> {
-                            // Animated paints ship a still and an animated file side by side; take the animated one
-                            val animated = layer.ty.images.filter { it.frameCount > 1 }
-                            val chosen = (animated.ifEmpty { layer.ty.images }).firstOrNull { it.url.isNotBlank() }
-                            chosen?.url?.let { SevenTVPaintShape.Image(it) }
+                            // Match the website: use the 1x animated variant if any image animates.
+                            val animated = layer.ty.images.any { it.frameCount > 1 }
+                            val chosen = layer.ty.images.firstOrNull { it.scale == 1 && (it.frameCount > 1) == animated }
+                            chosen?.url?.takeIf { it.isNotBlank() }?.let { SevenTVPaintShape.Image(it) }
                         }
 
                         else -> null
@@ -131,7 +139,7 @@ class SevenTVCosmeticsRepository(
         return if (layers.isEmpty()) null else SevenTVPaintUi(layers, shadows)
     }
 
-    private fun SevenTVPaintLayerType.toStops(): List<SevenTVPaintStopUi> = stops.mapNotNull { stop -> stop.color.toColorInt()?.let { SevenTVPaintStopUi(stop.at, it) } }.sortedBy { it.at }
+    private fun SevenTVPaintLayerType.toStops(): List<SevenTVPaintStopUi> = stops.mapNotNull { stop -> stop.color.toColorInt()?.let { SevenTVPaintStopUi(stop.at, it) } }
 
     private fun SevenTVColor.toColorInt(): Int? {
         if (r !in 0..255 || g !in 0..255 || b !in 0..255 || a !in 0..255) return null

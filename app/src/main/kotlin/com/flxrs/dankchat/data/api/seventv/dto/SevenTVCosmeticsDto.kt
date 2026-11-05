@@ -78,6 +78,7 @@ data class SevenTVPaintLayerType(
     @SerialName("__typename") val kind: String? = null,
     val angle: Float? = null,
     val repeating: Boolean = false,
+    val shape: SevenTVPaintRadialShape? = null,
     val stops: List<SevenTVPaintStop> = emptyList(),
     val color: SevenTVColor? = null,
     val images: List<SevenTVBadgeImage> = emptyList(),
@@ -122,4 +123,12 @@ data class SevenTVBadgeImage(
     val url: String,
     /** Frames in the file; more than one means the paint animates. */
     val frameCount: Int = 1,
+    val scale: Int = 1,
 )
+
+@Keep
+@Serializable
+enum class SevenTVPaintRadialShape {
+    CIRCLE,
+    ELLIPSE,
+}

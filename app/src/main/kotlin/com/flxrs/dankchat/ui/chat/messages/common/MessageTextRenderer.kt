@@ -15,13 +15,12 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -56,7 +55,6 @@ fun MessageTextWithInlineContent(
     namePaint: SevenTVPaintUi? = null,
     nameRange: TextRange? = null,
     nameColor: Color = Color.Unspecified,
-    nameShadow: Shadow? = null,
     emotes: ImmutableList<EmoteUi>,
     fontSize: Float,
     onTextClick: (Int) -> Unit,
@@ -180,7 +178,6 @@ fun MessageTextWithInlineContent(
                 namePaint = namePaint,
                 nameRange = nameRange,
                 nameColor = nameColor,
-                nameShadow = nameShadow,
                 maxLines = maxLines,
                 overflow = overflow,
                 modifier = modifier.fillMaxWidth(),

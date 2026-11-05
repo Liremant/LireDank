@@ -93,11 +93,12 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             manifestPlaceholders["applicationLabel"] = "@string/app_name"
             // Real keystore when present (local.properties/env), debug keystore otherwise (CI)
-            signingConfig = if (signingConfigs.getByName("release").storeFile?.exists() == true) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("ciFallback")
-            }
+            signingConfig =
+                if (signingConfigs.getByName("release").storeFile?.exists() == true) {
+                    signingConfigs.getByName("release")
+                } else {
+                    signingConfigs.getByName("ciFallback")
+                }
         }
         getByName("debug") {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

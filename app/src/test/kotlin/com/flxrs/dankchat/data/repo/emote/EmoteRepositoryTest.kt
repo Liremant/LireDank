@@ -1,8 +1,11 @@
 package com.flxrs.dankchat.data.repo.emote
 
 import com.flxrs.dankchat.data.api.helix.HelixApiClient
+import com.flxrs.dankchat.data.api.seventv.SevenTVApiClient
 import com.flxrs.dankchat.data.irc.IrcMessage
 import com.flxrs.dankchat.data.repo.channel.ChannelRepository
+import com.flxrs.dankchat.data.repo.emote.SevenTVCosmeticsRepository
+import com.flxrs.dankchat.data.repo.homies.HomiesBadgesRepository
 import com.flxrs.dankchat.data.toUserName
 import com.flxrs.dankchat.data.twitch.badge.Badge
 import com.flxrs.dankchat.data.twitch.badge.BadgeSet
@@ -14,12 +17,16 @@ import com.flxrs.dankchat.data.twitch.message.Message
 import com.flxrs.dankchat.data.twitch.message.PrivMessage
 import com.flxrs.dankchat.data.twitch.message.TwitchGif
 import com.flxrs.dankchat.di.DispatchersProvider
+import com.flxrs.dankchat.preferences.chat.ChatSettings
 import com.flxrs.dankchat.preferences.chat.ChatSettingsDataStore
+import io.mockk.every
 import io.mockk.impl.annotations.InjectMockKs
 import io.mockk.impl.annotations.MockK
 import io.mockk.junit5.MockKExtension
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import kotlin.test.assertEquals
@@ -36,11 +43,27 @@ internal class EmoteRepositoryTest {
     @MockK
     lateinit var channelRepository: ChannelRepository
 
+    @MockK(relaxed = true)
+    lateinit var sevenTVCosmeticsRepository: SevenTVCosmeticsRepository
+
+    @MockK(relaxed = true)
+    lateinit var homiesBadgesRepository: HomiesBadgesRepository
+
+    @MockK(relaxed = true)
+    lateinit var sevenTVApiClient: SevenTVApiClient
+
     @MockK
     lateinit var dispatchersProvider: DispatchersProvider
 
     @InjectMockKs
     lateinit var emoteRepository: EmoteRepository
+
+    @BeforeEach
+    fun setup() {
+        every { chatSettings.current() } returns ChatSettings()
+        every { homiesBadgesRepository.badges } returns MutableStateFlow(emptyMap())
+        every { sevenTVCosmeticsRepository.getCached(any()) } returns null
+    }
 
     // --- parseTwitchEmotes tests ---
 

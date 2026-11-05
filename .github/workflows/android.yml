@@ -119,6 +119,17 @@ jobs:
           echo "name=LireDank v${base} (${short_sha})" >> "$GITHUB_OUTPUT"
           echo "version=${base}" >> "$GITHUB_OUTPUT"
 
+      # The CI fallback keystore must exist before AGP validates signing
+      - name: Ensure CI keystore
+        run: |
+          mkdir -p ~/.android
+          if [ ! -f ~/.android/ci-release.keystore ]; then
+            keytool -genkeypair -v -keystore ~/.android/ci-release.keystore \
+              -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass android -keypass android \
+              -dname "CN=LireDank CI, OU=CI, O=LireDank, L=Internet, ST=Internet, C=RU"
+          fi
+
       - name: Build release APKs (all ABIs)
         run: bash ./gradlew :app:assembleRelease
         env:

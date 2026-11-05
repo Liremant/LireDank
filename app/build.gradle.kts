@@ -49,8 +49,10 @@ android {
         }
         // CI builds without the keystore fall back to debug signing so releases still ship
         create("ciFallback") {
+            // CI runners have no keystore and no debug keystore; build.gradle.ciKeystore creates one at %HOME%/.android
             storeFile = file("keystore/LireDank.jks").takeIf { it.exists() }
                 ?: File(System.getProperty("user.home") + "/.android/debug.keystore").takeIf { it.exists() }
+                ?: File(System.getProperty("user.home") + "/.android/ci-release.keystore")
             storePassword = "android"
             keyAlias = "androiddebugkey"
             keyPassword = "android"

@@ -13,9 +13,9 @@ import coil3.network.cachecontrol.CacheControlCacheStrategy
 import coil3.network.ktor3.KtorNetworkFetcherFactory
 import com.flxrs.dankchat.data.auth.AuthDataStore
 import com.flxrs.dankchat.data.repo.HighlightsRepository
+import com.flxrs.dankchat.data.repo.IgnoresRepository
 import com.flxrs.dankchat.data.repo.emote.EmoteRepository
 import com.flxrs.dankchat.data.repo.homies.HomiesBadgesRepository
-import com.flxrs.dankchat.data.repo.IgnoresRepository
 import com.flxrs.dankchat.di.DankChatModule
 import com.flxrs.dankchat.di.DispatchersProvider
 import com.flxrs.dankchat.domain.BatterySaverCoordinator

@@ -13,9 +13,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import org.koin.core.annotation.Single
 
@@ -90,6 +90,7 @@ class HomiesBadgesRepository(
                 when {
                     // chatterinohomies: one entry per user
                     entry.stringOrNull("userId") != null -> listOf(entry.stringOrNull("userId")!!)
+
                     // itzalex: one entry per badge listing its owners; empty ids are placeholders
                     else -> entry["users"]?.jsonArray.orEmpty().mapNotNull { it.jsonPrimitive.contentOrNull }
                 }

@@ -3,7 +3,6 @@ package com.flxrs.dankchat.data.auth
 import android.webkit.CookieManager
 import android.webkit.WebStorage
 import com.flxrs.dankchat.data.UserName
-import com.flxrs.dankchat.data.toUserId
 import com.flxrs.dankchat.data.api.ApiException
 import com.flxrs.dankchat.data.api.auth.AuthApiClient
 import com.flxrs.dankchat.data.repo.IgnoresRepository
@@ -16,6 +15,7 @@ import com.flxrs.dankchat.data.repo.chat.UserStateRepository
 import com.flxrs.dankchat.data.repo.chat.UsersRepository
 import com.flxrs.dankchat.data.repo.emote.EmoteRepository
 import com.flxrs.dankchat.data.repo.emote.EmoteUsageRepository
+import com.flxrs.dankchat.data.toUserId
 import com.flxrs.dankchat.di.DispatchersProvider
 import com.flxrs.dankchat.domain.ChannelDataCoordinator
 import com.flxrs.dankchat.utils.extensions.withoutOAuthPrefix

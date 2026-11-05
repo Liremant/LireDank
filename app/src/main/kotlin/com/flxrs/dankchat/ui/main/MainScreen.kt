@@ -782,6 +782,10 @@ fun MainScreen(
                         onNavigateToSettings()
                     }
 
+                    ToolbarAction.OpenSearch -> {
+                        activeChannel?.let { sheetNavigationViewModel.openHistory(HistoryChannel.Channel(it)) }
+                    }
+
                     ToolbarAction.TogglePinnedMessage -> {
                         activePinnedMessageViewModel?.toggleExpanded()
                     }

@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RemoveCircleOutline
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Checkbox
@@ -420,6 +421,15 @@ private fun ColumnScope.MainMenuContent(
             },
         )
     }
+
+    InlineMenuItem(
+        text = stringResource(R.string.input_action_search),
+        icon = Icons.Default.Search,
+        onClick = {
+            onAction(ToolbarAction.OpenSearch)
+            onDismiss()
+        },
+    )
 
     HorizontalDivider()
 

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
-    <string name="app_name">DankChat</string>
-    <string name="app_name_dank">DankChat (Dank)</string>
+    <string name="app_name">LireDank</string>
+    <string name="app_name_dank">LireDank</string>
     <string name="send_hint">傳送訊息</string>
     <string name="login">登入</string>
     <string name="reload_emotes">重新整理表情符號</string>

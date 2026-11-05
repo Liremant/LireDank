@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
-    <string name="app_name">DankChat</string>
-    <string name="app_name_dank">DankChat (Dank)</string>
+    <string name="app_name">LireDank</string>
+    <string name="app_name_dank">LireDank</string>
     <string name="send_hint">Pošalji poruku</string>
     <string name="login">Prijavi se</string>
     <string name="reload_emotes">Osveži emotove</string>

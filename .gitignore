@@ -9,3 +9,5 @@
 /captures
 .externalNativeBuild
 .kotlin
+app/keystore/*.jks
+app/keystore/*.keystore

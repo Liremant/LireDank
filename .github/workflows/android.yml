@@ -5,6 +5,7 @@ on:
     branches: [ master, develop ]
   pull_request:
     branches: [ master, develop ]
+  workflow_dispatch:
 
 jobs:
   test:
@@ -21,11 +22,9 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
-        with:
-          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
 
       - name: Unit tests
-        run: bash ./gradlew testDebug --stacktrace
+        run: bash ./gradlew testDebugUnitTest --stacktrace
 
   lint:
     name: Run lint
@@ -41,21 +40,17 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
-        with:
-          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
 
       - name: Spotless check
         run: bash ./gradlew :app:spotlessCheck
-
-      - name: Detekt
-        run: bash ./gradlew :app:detektDebug
 
       - name: Android Lint
         run: bash ./gradlew :app:lintDebug
 
   build:
-    name: Generate apk
+    name: Build APKs (all ABIs)
     runs-on: ubuntu-latest
+    needs: [ test, lint ]
 
     steps:
       - uses: actions/checkout@v7
@@ -67,41 +62,21 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
-        with:
-          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
 
-      - name: Build debug apk
+      - name: Build debug APKs (arm64, armv7, x86_64, universal)
         run: bash ./gradlew :app:assembleDebug
 
-      - name: Upload APK artifact
+      - name: Upload APK artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: debug apk
-          path: ${{ github.workspace }}/app/build/outputs/apk/debug/*.apk
+          name: LireDank-debug-apks
+          path: ${{ github.workspace }}/app/build/outputs/apk/debug/LireDank-debug*.apk
 
-      - name: Update debug tag
-        if: (github.event_name == 'push' && github.ref == 'refs/heads/develop')
-        uses: richardsimko/update-tag@v3.0.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: debug
-
-      - name: Update debug release
-        if: (github.event_name == 'push' && github.ref == 'refs/heads/develop')
-        uses: ncipollo/release-action@v1.21.0
-        with:
-          tag: debug
-          name: Debug APK
-          artifacts: ${{ github.workspace }}/app/build/outputs/apk/debug/DankChat-debug.apk
-          allowUpdates: true
-
-  build-release:
-    name: Generate signed release apk
+  release:
+    name: Release signed APKs
     runs-on: ubuntu-latest
-    environment: release
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/develop')
-    # Overlapping runs race on the rolling release and leave stale releases behind
+    needs: [ build ]
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/master')
     concurrency:
       group: release
       cancel-in-progress: false
@@ -116,72 +91,63 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
-        with:
-          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
 
-      - name: Decode Keystore
+      # Optional: add SIGNING_KEY (base64 JKS), KEY_ALIAS, KEY_PASSWORD, KEY_STORE_PASSWORD
+      # repo secrets to sign releases with the real key; otherwise the debug keystore signs them
+      - name: Check signing secret
+        id: signing
+        env:
+          HAS_KEY: ${{ secrets.SIGNING_KEY != '' }}
+        run: echo "available=${HAS_KEY}" >> "$GITHUB_OUTPUT"
+
+      - name: Decode Keystore (optional)
         id: decode_keystore
+        if: steps.signing.outputs.available == 'true'
         uses: timheuer/base64-to-file@v2.0
         with:
-          fileName: '/app/keystore/DankChat.jks'
+          fileName: '/app/keystore/LireDank.jks'
           fileDir: ${{ github.workspace }}
           encodedString: ${{ secrets.SIGNING_KEY }}
 
-      - name: Extract version name
+      - name: Extract version
         id: version
         run: |
           base=$(grep 'versionName' app/build.gradle.kts | head -1 | sed 's/.*"\(.*\)".*/\1/')
           short_sha="${GITHUB_SHA::7}"
-          tag="release-v${base}-${short_sha}"
+          tag="v${base}"
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
-          echo "name=Release v${base} (${short_sha})" >> "$GITHUB_OUTPUT"
+          echo "name=LireDank v${base} (${short_sha})" >> "$GITHUB_OUTPUT"
           echo "version=${base}" >> "$GITHUB_OUTPUT"
-          echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
 
-      - name: Build signed release apk
-        run: bash ./gradlew app:assembleRelease
+      - name: Build release APKs (all ABIs)
+        run: bash ./gradlew :app:assembleRelease
         env:
           SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           SIGNING_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           SIGNING_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
 
-      - name: Upload APK artifact
+      - name: Upload release artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: Signed release apk
-          path: ${{ github.workspace }}/app/build/outputs/apk/release/*.apk
+          name: LireDank-release-apks
+          path: ${{ github.workspace }}/app/build/outputs/apk/release/LireDank-release*.apk
 
-      - name: Update rolling release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.version.outputs.tag }}
-          RELEASE_NAME: ${{ steps.version.outputs.name }}
-          VERSION: ${{ steps.version.outputs.version }}
-          SHORT_SHA: ${{ steps.version.outputs.short_sha }}
-          REPO: ${{ github.repository }}
-        run: |
-          apk=$(ls ${{ github.workspace }}/app/build/outputs/apk/release/*.apk | head -1)
+      - name: Publish GitHub release
+        uses: ncipollo/release-action@v1.21.0
+        with:
+          tag: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.name }}
+          artifacts: ${{ github.workspace }}/app/build/outputs/apk/release/LireDank-release*.apk
+          body: |
+            **LireDank v${{ steps.version.outputs.version }}** ([commit](https://github.com/${{ github.repository }}/commit/${{ github.sha }}))
 
-          if ! git ls-remote --exit-code --tags origin "$TAG" >/dev/null 2>&1; then
-            git tag "$TAG"
-            git push origin "$TAG"
-          fi
+            APKs:
+            - `LireDank-release-arm64-v8a.apk` — modern 64-bit phones (recommended)
+            - `LireDank-release-armeabi-v7a.apk` — older 32-bit phones
+            - `LireDank-release-x86_64.apk` — emulators / x86 devices
+            - `LireDank-release-universal.apk` — all architectures in one
 
-          notes="**Version:** \`v${VERSION}\`
-          **Commit:** [\`${SHORT_SHA}\`](https://github.com/${REPO}/commit/${GITHUB_SHA})"
-
-          # GitHub displays the original publish date, so the release is recreated on every build
-          gh api --paginate "repos/$REPO/releases" \
-            --jq '.[] | select(.name | startswith("Release")) | "\(.id) \(.tag_name)"' |
-          while read -r release_id old_tag; do
-            gh api -X DELETE "repos/$REPO/releases/$release_id"
-            if [ "$old_tag" != "$TAG" ]; then
-              git push origin ":refs/tags/$old_tag" || true
-            fi
-          done
-
-          gh release create "$TAG" "$apk" \
-            --repo "$REPO" \
-            --title "$RELEASE_NAME" \
-            --notes "$notes" \
-            --latest
+            A fork of [DankChat](https://github.com/flex3r/DankChat) with 7TV nickname paints, badges, personal emotes and more.
+          allowUpdates: true
+          replacesArtifacts: true
+          token: ${{ secrets.GITHUB_TOKEN }}

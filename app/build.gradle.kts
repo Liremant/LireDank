@@ -1,5 +1,6 @@
 import com.android.build.api.artifact.ArtifactTransformationRequest
 import com.android.build.api.artifact.SingleArtifact
+import com.android.build.api.variant.FilterConfiguration
 import com.android.build.gradle.internal.PropertiesValueSource
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.io.StringReader
@@ -29,7 +30,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.flxrs.dankchat"
+        applicationId = "com.liredank.app"
         minSdk = 30
         targetSdk = 36
         versionCode = 40047
@@ -41,10 +42,28 @@ android {
     val localProperties = gradleLocalProperties(rootDir, providers)
     signingConfigs {
         create("release") {
-            storeFile = file("keystore/DankChat.jks").takeIf { it.exists() } ?: File(System.getProperty("user.home") + "/dankchat/DankChat.jks")
+            storeFile = file("keystore/LireDank.jks").takeIf { it.exists() } ?: File(System.getProperty("user.home") + "/liredank/LireDank.jks")
             storePassword = localProperties.getProperty("SIGNING_STORE_PASSWORD") ?: System.getenv("SIGNING_STORE_PASSWORD")
             keyAlias = localProperties.getProperty("SIGNING_KEY_ALIAS") ?: System.getenv("SIGNING_KEY_ALIAS")
             keyPassword = localProperties.getProperty("SIGNING_KEY_PASSWORD") ?: System.getenv("SIGNING_KEY_PASSWORD")
+        }
+        // CI builds without the keystore fall back to debug signing so releases still ship
+        create("ciFallback") {
+            storeFile = file("keystore/LireDank.jks").takeIf { it.exists() }
+                ?: File(System.getProperty("user.home") + "/.android/debug.keystore").takeIf { it.exists() }
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            // armeabi-v7a covers 32-bit phones, arm64-v8a modern devices, x86_64 emulators
+            include("armeabi-v7a", "arm64-v8a", "x86_64")
+            isUniversalApk = true
         }
     }
 
@@ -73,7 +92,12 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             manifestPlaceholders["applicationLabel"] = "@string/app_name"
-            signingConfig = signingConfigs.getByName("release")
+            // Real keystore when present (local.properties/env), debug keystore otherwise (CI)
+            signingConfig = if (signingConfigs.getByName("release").storeFile?.exists() == true) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("ciFallback")
+            }
         }
         getByName("debug") {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -91,7 +115,7 @@ android {
     }
 
     androidComponents.onVariants { variant ->
-        val renameTask = tasks.register<RenameApkTask>("renameApk${variant.name.replaceFirstChar { it.uppercase() }}") { apkName.set("DankChat-${variant.name}.apk") }
+        val renameTask = tasks.register<RenameApkTask>("renameApk${variant.name.replaceFirstChar { it.uppercase() }}") { apkName.set("LireDank-${variant.name}.apk") }
         val transformationRequest =
             variant.artifacts
                 .use(renameTask)
@@ -330,7 +354,11 @@ abstract class RenameApkTask : DefaultTask() {
     fun taskAction() {
         transformationRequest.submit(this) { builtArtifact ->
             val inputFile = File(builtArtifact.outputFile)
-            val outputFile = File(outputDirs.get().asFile, apkName.get())
+            // ABI splits produce several APKs per variant; keep them apart in the name
+            val base = apkName.get().removeSuffix(".apk")
+            val abi = builtArtifact.filters.firstOrNull { it.filterType == FilterConfiguration.FilterType.ABI }?.identifier
+            val abiTag = abi?.let { "-$it" } ?: ""
+            val outputFile = File(outputDirs.get().asFile, "$base$abiTag.apk")
             inputFile.copyTo(outputFile, overwrite = true)
             outputFile
         }

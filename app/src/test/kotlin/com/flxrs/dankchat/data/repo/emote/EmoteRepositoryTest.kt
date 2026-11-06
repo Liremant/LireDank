@@ -19,10 +19,12 @@ import com.flxrs.dankchat.data.twitch.message.TwitchGif
 import com.flxrs.dankchat.di.DispatchersProvider
 import com.flxrs.dankchat.preferences.chat.ChatSettings
 import com.flxrs.dankchat.preferences.chat.ChatSettingsDataStore
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.impl.annotations.InjectMockKs
 import io.mockk.impl.annotations.MockK
 import io.mockk.junit5.MockKExtension
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -63,6 +65,8 @@ internal class EmoteRepositoryTest {
         every { chatSettings.current() } returns ChatSettings()
         every { homiesBadgesRepository.badges } returns MutableStateFlow(emptyMap())
         every { sevenTVCosmeticsRepository.getCached(any()) } returns null
+        every { dispatchersProvider.default } returns Dispatchers.Default
+        coEvery { sevenTVApiClient.getSevenTVChannelEmotes(any()) } returns Result.success(null)
     }
 
     // --- parseTwitchEmotes tests ---

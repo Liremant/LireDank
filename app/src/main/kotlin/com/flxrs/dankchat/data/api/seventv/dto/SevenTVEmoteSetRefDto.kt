@@ -15,5 +15,8 @@ data class SevenTVEmoteSetRefDto(
 )
 
 object SevenTVEmoteSetFlags {
-    const val PERSONAL = 1L
+    const val IMMUTABLE = 1L
+    const val PRIVILEGED = 1L shl 1
+    const val PERSONAL = 1L shl 2
+    const val COMMERCIAL = 1L shl 3
 }

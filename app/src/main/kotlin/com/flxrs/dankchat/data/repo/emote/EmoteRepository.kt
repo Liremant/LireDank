@@ -92,6 +92,17 @@ class EmoteRepository(
      */
     private val personalEmotes = MutableStateFlow<List<GenericEmote>>(emptyList())
 
+    /**
+     * 7TV personal emote sets of chat participants, keyed by Twitch user id. Every viewer with a 7TV
+     * personal set can use its emotes in chat; chatterino7 resolves them before every channel set,
+     * which is why they are looked up per sender instead of merged into the channel maps.
+     */
+    private val senderPersonalEmotes = ConcurrentHashMap<UserId, List<GenericEmote>>()
+    private val personalSetFetches = ConcurrentHashMap.newKeySet<UserId>()
+
+    /** The signed-in account's own set is resolved eagerly on login, as before. */
+    private var loggedInUserId: UserId? = null
+
     private val globalEmoteState = MutableStateFlow(GlobalEmoteState())
     private val channelEmoteStates = ConcurrentHashMap<UserName, MutableStateFlow<ChannelEmoteState>>()
 
@@ -184,15 +195,15 @@ class EmoteRepository(
     private fun getOrBuildEmoteMap(
         channel: UserName,
         withTwitch: Boolean,
+        senderPersonalEmotes: List<GenericEmote> = emptyList(),
     ): Map<String, GenericEmote> {
         val globalState = globalEmoteState.value
         val channelState = channelEmoteStates[channel]?.value ?: ChannelEmoteState()
 
         // Use cached map for the hot path (without Twitch emotes)
-        if (!withTwitch) {
+        if (!withTwitch && senderPersonalEmotes.isEmpty()) {
             val cached = cachedEmoteMaps[channel]
-            val personal = personalEmotes.value
-            if (cached != null && cached.globalState === globalState && cached.channelState === channelState && cached.personalEmotes === personal) {
+            if (cached != null && cached.globalState === globalState && cached.channelState === channelState) {
                 return cached.map
             }
         }
@@ -214,17 +225,23 @@ class EmoteRepository(
             globalState.twitchEmotes.associateByTo(map) { it.code }
             channelState.twitchEmotes.associateByTo(map) { it.code }
         }
-        // Personal emotes win over everything else, matching Chatterino's lookup order
-        personalEmotes.value.associateByTo(map) { it.code }
 
-        if (!withTwitch) {
-            cachedEmoteMaps[channel] = CachedEmoteMap(globalState, channelState, personalEmotes.value, map)
+        if (!withTwitch && senderPersonalEmotes.isEmpty()) {
+            cachedEmoteMaps[channel] = CachedEmoteMap(globalState, channelState, map)
+        }
+
+        // The sender's 7TV personal emotes beat every channel/global set, matching chatterino7's
+        // parseEmote order; they are resolved per sender, not per channel
+        if (senderPersonalEmotes.isNotEmpty()) {
+            senderPersonalEmotes.associateByTo(HashMap(map)) { it.code }
         }
 
         return map
     }
 
     suspend fun parseEmotesAndBadges(message: Message): Message {
+        // Personal 7TV emotes are per sender; make sure their set is known before parsing
+        (message as? PrivMessage)?.userId?.let { ensurePersonalEmotesFor(it) }
         val replyMentionOffset = (message as? PrivMessage)?.replyMentionOffset ?: 0
         val emoteData = message.emoteData ?: return message
         val (messageString, channel, emotesWithPositions) = emoteData
@@ -250,12 +267,15 @@ class EmoteRepository(
             )
         val twitchEmoteCodes = twitchEmotes.mapTo(mutableSetOf()) { it.code }
         val hasBits = message is PrivMessage && message.tags["bits"] != null
-        val (thirdPartyEmotes, cheermotes) = parseNonTwitchEmotes(
-            message = appendedSpaceAdjustedMessage,
-            channel = channel,
-            excludeCodes = twitchEmoteCodes,
-            hasBits = hasBits,
-        )
+        val senderEmotes = (message as? PrivMessage)?.userId?.let { senderPersonalEmotes[it] }.orEmpty()
+        val (thirdPartyEmotes, cheermotes) =
+            parseNonTwitchEmotes(
+                message = appendedSpaceAdjustedMessage,
+                channel = channel,
+                excludeCodes = twitchEmoteCodes,
+                hasBits = hasBits,
+                senderPersonalEmotes = senderEmotes,
+            )
         val gifPositions =
             parseGifPositions(
                 gifsWithPositions = emoteData.gifsWithPositions,
@@ -425,8 +445,6 @@ class EmoteRepository(
     private data class CachedEmoteMap(
         val globalState: GlobalEmoteState,
         val channelState: ChannelEmoteState,
-        // Personal emotes arrive after the first messages are mapped, so they must invalidate the map too
-        val personalEmotes: List<GenericEmote>,
         val map: Map<String, GenericEmote>,
     )
 
@@ -696,10 +714,12 @@ class EmoteRepository(
     }
 
     /**
-     * Loads the signed-in account's personal 7TV emote set. A missing set or a failed request clears nothing
-     * beyond the personal list, so chat keeps working with channel and global emotes.
+     * Loads a 7TV personal emote set. For the signed-in account this populates the always-on personal
+     * list; for other chat participants it feeds the per-sender registry that parseEmotesAndBadges
+     * consults. A missing set or a failed request clears nothing beyond this sender's entry.
      */
     suspend fun refreshSevenTVPersonalEmotes(userId: UserId) = withContext(dispatchersProvider.default) {
+        loggedInUserId = userId
         val user =
             sevenTVApiClient
                 .getSevenTVChannelEmotes(userId)
@@ -716,18 +736,39 @@ class EmoteRepository(
             return@withContext
         }
 
-        val set = sevenTVApiClient.getSevenTVEmoteSet(personalSetId).getOrNull() ?: return@withContext
-        personalEmotes.value =
-            set.emotes.orEmpty().mapNotNull { emote ->
-                parseSevenTVEmote(
-                    emote,
-                    EmoteType.ChannelSevenTVEmote(emote.data?.owner?.displayName, emote.data?.baseName?.takeIf { emote.name != it }),
-                )
-            }
+        val emotes = fetchSevenTVPersonalEmotes(personalSetId)
+        personalEmotes.value = emotes
+        senderPersonalEmotes[userId] = emotes
+    }
+
+    /**
+     * Ensures the sender's personal emotes are known before a message of theirs is parsed. The
+     * cosmetics query already runs per sender; this piggybacks the personal set on the same user
+     * lookup, one request per unique sender per session.
+     */
+    suspend fun ensurePersonalEmotesFor(senderId: UserId?) {
+        if (senderId == null || senderId == loggedInUserId) return
+        if (senderPersonalEmotes.containsKey(senderId) || !personalSetFetches.add(senderId)) return
+        try {
+            refreshSevenTVPersonalEmotes(senderId)
+        } finally {
+            personalSetFetches.remove(senderId)
+        }
+    }
+
+    private suspend fun fetchSevenTVPersonalEmotes(personalSetId: String): List<GenericEmote> {
+        val set = sevenTVApiClient.getSevenTVEmoteSet(personalSetId).getOrNull() ?: return emptyList()
+        return set.emotes.orEmpty().mapNotNull { emote ->
+            parseSevenTVEmote(
+                emote,
+                EmoteType.ChannelSevenTVEmote(emote.data?.owner?.displayName, emote.data?.baseName?.takeIf { emote.name != it }),
+            )
+        }
     }
 
     suspend fun clearSevenTVPersonalEmotes() {
         personalEmotes.value = emptyList()
+        senderPersonalEmotes.clear()
     }
 
     suspend fun setSevenTVEmotes(
@@ -872,8 +913,14 @@ class EmoteRepository(
         channel: UserName,
         excludeCodes: Set<String>,
         hasBits: Boolean,
+        senderPersonalEmotes: List<GenericEmote> = emptyList(),
     ): Pair<List<ChatMessageEmote>, List<ChatMessageEmote>> {
-        val emoteMap = getOrBuildEmoteMap(channel, withTwitch = false)
+        val emoteMap =
+            if (senderPersonalEmotes.isEmpty()) {
+                getOrBuildEmoteMap(channel, withTwitch = false)
+            } else {
+                getOrBuildEmoteMap(channel, withTwitch = false, senderPersonalEmotes = senderPersonalEmotes)
+            }
         val cheermoteSets = if (hasBits) {
             channelEmoteStates[channel]?.value?.cheermoteSets.orEmpty()
         } else {

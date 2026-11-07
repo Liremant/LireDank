@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Theaters
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.outlined.Shield
@@ -204,6 +205,7 @@ internal val InputAction.labelRes: Int
         when (this) {
             InputAction.Search -> R.string.input_action_search
             InputAction.LastMessage -> R.string.input_action_last_message
+            InputAction.ReloadHistory -> R.string.input_action_reload_history
             InputAction.Stream -> R.string.input_action_stream
             InputAction.ModActions -> R.string.input_action_mod_actions
             InputAction.Fullscreen -> R.string.input_action_fullscreen
@@ -217,6 +219,7 @@ internal val InputAction.icon: ImageVector
         when (this) {
             InputAction.Search -> Icons.Default.Search
             InputAction.LastMessage -> Icons.Default.History
+            InputAction.ReloadHistory -> Icons.Default.Sync
             InputAction.Stream -> Icons.Outlined.Videocam
             InputAction.ModActions -> Icons.Outlined.Shield
             InputAction.Fullscreen -> Icons.Default.Fullscreen

@@ -10,6 +10,7 @@ import kotlinx.serialization.Serializable
 enum class InputAction {
     Search,
     LastMessage,
+    ReloadHistory,
     Stream,
     ModActions,
     Fullscreen,

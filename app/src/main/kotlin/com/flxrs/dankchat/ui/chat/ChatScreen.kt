@@ -681,7 +681,7 @@ private fun FabActionsMenu(
                 menuItems.forEachIndexed { index, (action, item) ->
                     val actionEnabled =
                         when (action) {
-                            InputAction.Search, InputAction.Fullscreen, InputAction.HideInput, InputAction.Debug -> true
+                            InputAction.Search, InputAction.ReloadHistory, InputAction.Fullscreen, InputAction.HideInput, InputAction.Debug -> true
                             InputAction.LastMessage -> callbacks.enabled && callbacks.hasLastMessage
                             InputAction.Stream, InputAction.ModActions, InputAction.Theater -> callbacks.enabled
                         }
@@ -773,6 +773,10 @@ private fun getFabMenuItem(
     }
 
     InputAction.LastMessage -> {
+        null
+    }
+
+    InputAction.ReloadHistory -> {
         null
     }
 

@@ -52,6 +52,7 @@ import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Theaters
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.outlined.EmojiEmotions
@@ -183,6 +184,7 @@ fun ChatInputLayout(
     val onToggleStream = callbacks.onToggleStream
     val onModActions = callbacks.onModActions
     val onInputActionsChange = callbacks.onInputActionsChange
+    val onReloadHistoryClick = callbacks.onReloadHistoryClick
     val onSearchClick = callbacks.onSearchClick
     val onDebugInfoClick = callbacks.onDebugInfoClick
     val onNewWhisper = callbacks.onNewWhisper
@@ -414,6 +416,7 @@ fun ChatInputLayout(
                         onNewWhisper = onNewWhisper,
                         onSearchClick = onSearchClick,
                         onLastMessageClick = onLastMessageClick,
+                        onReloadHistoryClick = onReloadHistoryClick,
                         onLastMessageLongClick = { onRecentMessagesExpandedChange(true) },
                         onToggleStream = onToggleStream,
                         onModActions = onModActions,
@@ -539,6 +542,7 @@ fun ChatInputLayout(
                     when (action) {
                         InputAction.Search -> onSearchClick()
                         InputAction.LastMessage -> onLastMessageClick()
+                        InputAction.ReloadHistory -> onReloadHistoryClick()
                         InputAction.Stream -> onToggleStream()
                         InputAction.ModActions -> onModActions()
                         InputAction.Fullscreen -> onToggleFullscreen()
@@ -644,6 +648,7 @@ private fun InputActionButton(
     isTheaterMode: Boolean,
     onSearchClick: () -> Unit,
     onLastMessageClick: () -> Unit,
+    onReloadHistoryClick: () -> Unit,
     onLastMessageLongClick: () -> Unit,
     onToggleStream: () -> Unit,
     onModActions: () -> Unit,
@@ -675,6 +680,13 @@ private fun InputActionButton(
             icon = Icons.Default.History
             contentDescription = R.string.resume_scroll
             onClick = onLastMessageClick
+            tint = null
+        }
+
+        InputAction.ReloadHistory -> {
+            icon = Icons.Default.Sync
+            contentDescription = R.string.input_action_reload_history
+            onClick = onReloadHistoryClick
             tint = null
         }
 
@@ -727,7 +739,7 @@ private fun InputActionButton(
 
     val actionEnabled =
         when (action) {
-            InputAction.Search, InputAction.Fullscreen, InputAction.HideInput, InputAction.Debug -> true
+            InputAction.Search, InputAction.ReloadHistory, InputAction.Fullscreen, InputAction.HideInput, InputAction.Debug -> true
             InputAction.LastMessage -> enabled && hasLastMessage
             InputAction.Stream, InputAction.ModActions -> enabled
             InputAction.Theater -> enabled && isStreamActive
@@ -856,6 +868,7 @@ private fun InputActionsRow(
     onNewWhisper: (() -> Unit)?,
     onSearchClick: () -> Unit,
     onLastMessageClick: () -> Unit,
+    onReloadHistoryClick: () -> Unit,
     onLastMessageLongClick: () -> Unit,
     onToggleStream: () -> Unit,
     onModActions: () -> Unit,
@@ -936,6 +949,7 @@ private fun InputActionsRow(
                     onOverflowExpandedChange = onOverflowExpandedChange,
                     onNewWhisper = onNewWhisper,
                     onSearchClick = onSearchClick,
+                    onReloadHistoryClick = onReloadHistoryClick,
                     onLastMessageClick = onLastMessageClick,
                     onLastMessageLongClick = onLastMessageLongClick,
                     onToggleStream = onToggleStream,
@@ -974,6 +988,7 @@ private fun EndAlignedActionGroup(
     onNewWhisper: (() -> Unit)?,
     onSearchClick: () -> Unit,
     onLastMessageClick: () -> Unit,
+    onReloadHistoryClick: () -> Unit,
     onLastMessageLongClick: () -> Unit,
     onToggleStream: () -> Unit,
     onModActions: () -> Unit,
@@ -1031,6 +1046,7 @@ private fun EndAlignedActionGroup(
                         isTheaterMode = isTheaterMode,
                         onSearchClick = onSearchClick,
                         onLastMessageClick = onLastMessageClick,
+                        onReloadHistoryClick = onReloadHistoryClick,
                         onLastMessageLongClick = onLastMessageLongClick,
                         onToggleStream = onToggleStream,
                         onModActions = onModActions,

@@ -339,6 +339,7 @@
     <string name="input_actions_none">No actions visible</string>
     <string name="input_action_search">Search messages</string>
     <string name="input_action_last_message">Last message</string>
+    <string name="input_action_reload_history">Reload chat history</string>
     <string name="input_action_recent_messages">Recent messages</string>
     <string name="input_action_stream">Toggle stream</string>
     <string name="input_action_mod_actions">Channel moderation</string>

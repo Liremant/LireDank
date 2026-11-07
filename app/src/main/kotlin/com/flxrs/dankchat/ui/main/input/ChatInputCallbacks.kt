@@ -6,6 +6,7 @@ import kotlinx.collections.immutable.ImmutableList
 data class ChatInputCallbacks(
     val onSend: () -> Unit,
     val onLastMessageClick: () -> Unit,
+    val onReloadHistoryClick: () -> Unit = {},
     val onEmoteClick: () -> Unit,
     val onOverlayDismiss: () -> Unit,
     val onToggleFullscreen: () -> Unit,

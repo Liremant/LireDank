@@ -171,6 +171,10 @@ class MainScreenViewModel(
         }
     }
 
+    fun reloadChatHistory(channel: UserName) {
+        channelDataCoordinator.reloadChatHistory(channel)
+    }
+
     fun toggleFullscreen() {
         _isFullscreen.update { !it }
     }

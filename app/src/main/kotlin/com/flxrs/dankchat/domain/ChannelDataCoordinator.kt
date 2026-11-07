@@ -201,6 +201,11 @@ class ChannelDataCoordinator(
         loadGlobalData()
     }
 
+    /** Re-fetches recent messages for [channel] over the existing connection, no reconnect. */
+    fun reloadChatHistory(channel: UserName) {
+        scope.launch { channelDataLoader.reloadChatHistory(channel) }
+    }
+
     fun retryDataLoading(failedState: GlobalLoadingState.Failed) {
         scope.launch {
             _globalLoadingState.value = GlobalLoadingState.Loading

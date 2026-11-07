@@ -52,6 +52,9 @@ import com.flxrs.dankchat.utils.extensions.analyzeCodePoints
 import com.flxrs.dankchat.utils.extensions.appendSpacesBetweenEmojiGroup
 import com.flxrs.dankchat.utils.extensions.codePointAsString
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -59,6 +62,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.core.annotation.Single
 import java.util.Locale
@@ -99,6 +103,8 @@ class EmoteRepository(
      */
     private val senderPersonalEmotes = ConcurrentHashMap<UserId, List<GenericEmote>>()
     private val personalSetFetches = ConcurrentHashMap.newKeySet<UserId>()
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     /** The signed-in account's own set is resolved eagerly on login, as before. */
     private var loggedInUserId: UserId? = null
@@ -240,8 +246,9 @@ class EmoteRepository(
     }
 
     suspend fun parseEmotesAndBadges(message: Message): Message {
-        // Personal 7TV emotes are per sender; make sure their set is known before parsing
-        (message as? PrivMessage)?.userId?.let { ensurePersonalEmotesFor(it) }
+        // Kick off a personal-emotes lookup for unknown senders without blocking the parse:
+        // when their set arrives it lands in senderPersonalEmotes and the caller reparses.
+        (message as? PrivMessage)?.userId?.let { prefetchPersonalEmotesFor(it) }
         val replyMentionOffset = (message as? PrivMessage)?.replyMentionOffset ?: 0
         val emoteData = message.emoteData ?: return message
         val (messageString, channel, emotesWithPositions) = emoteData
@@ -719,7 +726,10 @@ class EmoteRepository(
      * consults. A missing set or a failed request clears nothing beyond this sender's entry.
      */
     suspend fun refreshSevenTVPersonalEmotes(userId: UserId) = withContext(dispatchersProvider.default) {
-        loggedInUserId = userId
+        // Only the auth coordinator calls this for the signed-in account before anyone else;
+        // remember that id so later per-sender lookups can skip it
+        if (loggedInUserId == null) loggedInUserId = userId
+        val isSelf = userId == loggedInUserId
         val user =
             sevenTVApiClient
                 .getSevenTVChannelEmotes(userId)
@@ -732,27 +742,28 @@ class EmoteRepository(
                 .firstOrNull { it.flags and SevenTVEmoteSetFlags.PERSONAL != 0L }
                 ?.id
         if (personalSetId == null) {
-            personalEmotes.value = emptyList()
+            if (isSelf) personalEmotes.value = emptyList()
             return@withContext
         }
 
         val emotes = fetchSevenTVPersonalEmotes(personalSetId)
-        personalEmotes.value = emotes
         senderPersonalEmotes[userId] = emotes
+        if (isSelf) personalEmotes.value = emotes
     }
 
     /**
-     * Ensures the sender's personal emotes are known before a message of theirs is parsed. The
-     * cosmetics query already runs per sender; this piggybacks the personal set on the same user
-     * lookup, one request per unique sender per session.
+     * Fire-and-forget personal-emotes lookup for a chat participant, deduplicated per sender. Never
+     * blocks message parsing - the network round-trip must not stall the emote load loop.
      */
-    suspend fun ensurePersonalEmotesFor(senderId: UserId?) {
+    fun prefetchPersonalEmotesFor(senderId: UserId?) {
         if (senderId == null || senderId == loggedInUserId) return
         if (senderPersonalEmotes.containsKey(senderId) || !personalSetFetches.add(senderId)) return
-        try {
-            refreshSevenTVPersonalEmotes(senderId)
-        } finally {
-            personalSetFetches.remove(senderId)
+        scope.launch {
+            try {
+                refreshSevenTVPersonalEmotes(senderId)
+            } finally {
+                personalSetFetches.remove(senderId)
+            }
         }
     }
 

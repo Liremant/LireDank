@@ -874,6 +874,10 @@ fun MainScreen(
                                 chatInputViewModel.getLastMessage()
                             }
 
+                            InputAction.ReloadHistory -> {
+                                channel?.let { mainScreenViewModel.reloadChatHistory(it) }
+                            }
+
                             InputAction.Stream -> {
                                 val stream = streamViewModel.streamState.value.currentStream
                                 when {

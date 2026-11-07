@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Theaters
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.outlined.RemoveCircleOutline
@@ -303,6 +304,13 @@ private fun getOverflowItem(
         )
     }
 
+    InputAction.ReloadHistory -> {
+        OverflowItem(
+            labelRes = R.string.input_action_reload_history,
+            icon = Icons.Default.Sync,
+        )
+    }
+
     InputAction.Stream -> {
         when {
             hasStreamData || isStreamActive -> {
@@ -379,7 +387,7 @@ private fun isActionEnabled(
     inputEnabled: Boolean,
     hasLastMessage: Boolean,
 ): Boolean = when (action) {
-    InputAction.Search, InputAction.Fullscreen, InputAction.HideInput, InputAction.Debug -> true
+    InputAction.Search, InputAction.ReloadHistory, InputAction.Fullscreen, InputAction.HideInput, InputAction.Debug -> true
     InputAction.LastMessage -> inputEnabled && hasLastMessage
     InputAction.Stream, InputAction.ModActions, InputAction.Theater -> inputEnabled
 }

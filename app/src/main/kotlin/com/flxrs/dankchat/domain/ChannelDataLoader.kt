@@ -137,4 +137,7 @@ class ChannelDataLoader(
 
         failures to fallbackMessages
     }
+
+    /** Forced recent-messages fetch, bypassing the history setting, without reconnecting. */
+    suspend fun reloadChatHistory(channel: UserName) = chatRepository.loadRecentMessagesForce(channel)
 }

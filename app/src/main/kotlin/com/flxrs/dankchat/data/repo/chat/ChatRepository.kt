@@ -135,6 +135,9 @@ class ChatRepository(
         }
     }
 
+    /** Forces a recent-messages fetch regardless of the history setting, over the live connection. */
+    suspend fun loadRecentMessagesForce(channel: UserName) = chatEventProcessor.loadRecentMessages(channel)
+
     fun makeAndPostCustomSystemMessage(
         msg: TextResource,
         channel: UserName,

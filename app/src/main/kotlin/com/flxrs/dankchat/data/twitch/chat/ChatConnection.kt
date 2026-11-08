@@ -330,6 +330,8 @@ class ChatConnection(
         connectionJob?.cancel()
         scope.launch {
             runCatching {
+                // The mock IRC server can be closed by the test teardown before this coroutine runs;
+                // swallow that instead of leaking an unhandled exception into the test runner
                 currentSession?.close()
                 currentSession?.cancel()
             }

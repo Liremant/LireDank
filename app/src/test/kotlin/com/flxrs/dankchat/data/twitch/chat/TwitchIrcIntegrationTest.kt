@@ -6,6 +6,7 @@ import com.flxrs.dankchat.di.DispatchersProvider
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.mockk.every
+import io.mockk.unmockkAll
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -51,11 +52,14 @@ internal class ChatConnectionTest {
 
     @AfterEach
     fun cleanup() {
+        // Stop the connection before the mock server shuts down, so the close coroutine
+        // cannot leak an unhandled socket exception into the next test
         if (::connection.isInitialized) {
             connection.close()
         }
         mockServer.close()
         httpClient.close()
+        unmockkAll()
     }
 
     private fun createConnection(

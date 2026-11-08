@@ -22,9 +22,11 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: false
 
       - name: Unit tests
-        run: bash ./gradlew testDebugUnitTest --stacktrace
+        run: bash ./gradlew testDebugUnitTest --stacktrace --max-workers=4 --parallel
 
   lint:
     name: Run lint
@@ -40,6 +42,8 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: false
 
       - name: Spotless check
         run: bash ./gradlew :app:spotlessCheck
@@ -50,7 +54,6 @@ jobs:
   build:
     name: Build APKs (all ABIs)
     runs-on: ubuntu-latest
-    needs: [ test, lint ]
 
     steps:
       - uses: actions/checkout@v7
@@ -62,9 +65,11 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: false
 
       - name: Build debug APKs (arm64, armv7, x86_64, universal)
-        run: bash ./gradlew :app:assembleDebug
+        run: bash ./gradlew :app:assembleDebug --max-workers=4 --parallel
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v7
@@ -93,6 +98,8 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: false
 
       # Optional: add SIGNING_KEY (base64 JKS), KEY_ALIAS, KEY_PASSWORD, KEY_STORE_PASSWORD
       # repo secrets to sign releases with the real key; otherwise the debug keystore signs them
@@ -161,7 +168,7 @@ jobs:
           fi
 
       - name: Build release APKs (all ABIs)
-        run: bash ./gradlew :app:assembleRelease
+        run: bash ./gradlew :app:assembleRelease --max-workers=4 --parallel
         env:
           SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           SIGNING_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}

@@ -121,6 +121,34 @@ jobs:
           echo "name=LireDank v${base} (${short_sha})" >> "$GITHUB_OUTPUT"
           echo "version=${base}" >> "$GITHUB_OUTPUT"
 
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Conventional commits since the previous release tag
+          prev_tag=$(git tag --list 'v*' --sort=-v:refname | head -1)
+          if [ -z "$prev_tag" ]; then
+            range="HEAD"
+          else
+            range="${prev_tag}..HEAD"
+          fi
+          {
+            echo "**LireDank v${{ steps.version.outputs.version }}** ([commit](https://github.com/${{ github.repository }}/commit/${{ github.sha }}))"
+            echo
+            echo "### What's new"
+            git log --pretty=format:'- %s ([%h](https://github.com/${{ github.repository }}/commit/%H))' "$range" --grep='^feat\|^fix\|^perf' -E | head -30
+            echo
+            echo "### Fixes"
+            git log --pretty=format:'- %s ([%h](https://github.com/${{ github.repository }}/commit/%H))' "$range" --grep='^fix' -E | head -20
+            echo
+            echo "APKs:"
+            echo "- \`LireDank-release-arm64-v8a.apk\` — modern 64-bit phones (recommended)"
+            echo "- \`LireDank-release-armeabi-v7a.apk\` — older 32-bit phones"
+            echo "- \`LireDank-release-x86_64.apk\` — emulators / x86 devices"
+            echo "- \`LireDank-release-universal.apk\` — all architectures in one"
+            echo
+            echo "A fork of [DankChat](https://github.com/flex3r/DankChat) with 7TV nickname paints, badges, personal emotes and more."
+          } > release-notes.md
+
       # The CI fallback keystore must exist before AGP validates signing
       - name: Ensure CI keystore
         run: |
@@ -152,16 +180,7 @@ jobs:
           name: ${{ steps.version.outputs.name }}
           prerelease: true
           artifacts: ${{ github.workspace }}/app/build/outputs/apk/release/LireDank-release*.apk
-          body: |
-            **LireDank v${{ steps.version.outputs.version }}** ([commit](https://github.com/${{ github.repository }}/commit/${{ github.sha }}))
-
-            APKs:
-            - `LireDank-release-arm64-v8a.apk` — modern 64-bit phones (recommended)
-            - `LireDank-release-armeabi-v7a.apk` — older 32-bit phones
-            - `LireDank-release-x86_64.apk` — emulators / x86 devices
-            - `LireDank-release-universal.apk` — all architectures in one
-
-            A fork of [DankChat](https://github.com/flex3r/DankChat) with 7TV nickname paints, badges, personal emotes and more.
+          bodyPath: release-notes.md
           allowUpdates: true
           replacesArtifacts: true
           token: ${{ secrets.GITHUB_TOKEN }}

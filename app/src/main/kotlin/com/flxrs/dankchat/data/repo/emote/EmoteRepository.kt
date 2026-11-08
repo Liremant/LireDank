@@ -102,6 +102,7 @@ class EmoteRepository(
      * which is why they are looked up per sender instead of merged into the channel maps.
      */
     private val senderPersonalEmotes = ConcurrentHashMap<UserId, List<GenericEmote>>()
+    private val senderPersonalEmotesVersion = MutableStateFlow(0)
     private val personalSetFetches = ConcurrentHashMap.newKeySet<UserId>()
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -121,7 +122,7 @@ class EmoteRepository(
 
     fun getEmotes(channel: UserName): Flow<Emotes> {
         val channelFlow = channelEmoteStates.getOrPut(channel) { MutableStateFlow(ChannelEmoteState()) }
-        return combine(globalEmoteState, channelFlow) { globalState, channelState ->
+        return combine(globalEmoteState, channelFlow, personalEmotes, senderPersonalEmotesVersion) { globalState, channelState, personal, _ ->
             getOrMergeEmotes(channel, globalState, channelState)
         }
     }
@@ -132,13 +133,14 @@ class EmoteRepository(
         globalState: GlobalEmoteState,
         channelState: ChannelEmoteState,
     ): Emotes {
+        val personalVersion = senderPersonalEmotesVersion.value
         val cached = cachedMergedEmotes[channel]
-        if (cached != null && cached.globalState === globalState && cached.channelState === channelState) {
+        if (cached != null && cached.globalState === globalState && cached.channelState === channelState && cached.personalVersion == personalVersion) {
             return cached.emotes
         }
 
-        val merged = mergeEmotes(globalState, channelState)
-        cachedMergedEmotes[channel] = CachedMergedEmotes(globalState, channelState, merged)
+        val merged = mergeEmotes(globalState, channelState).withPersonalEmotes(personalEmotes.value + senderPersonalEmotes.values.flatten())
+        cachedMergedEmotes[channel] = CachedMergedEmotes(globalState, channelState, personalVersion, merged)
         return merged
     }
 
@@ -458,6 +460,7 @@ class EmoteRepository(
     private data class CachedMergedEmotes(
         val globalState: GlobalEmoteState,
         val channelState: ChannelEmoteState,
+        val personalVersion: Int,
         val emotes: Emotes,
     )
 
@@ -748,6 +751,7 @@ class EmoteRepository(
 
         val emotes = fetchSevenTVPersonalEmotes(personalSetId)
         senderPersonalEmotes[userId] = emotes
+        senderPersonalEmotesVersion.value++
         if (isSelf) personalEmotes.value = emotes
     }
 
@@ -780,6 +784,7 @@ class EmoteRepository(
     suspend fun clearSevenTVPersonalEmotes() {
         personalEmotes.value = emptyList()
         senderPersonalEmotes.clear()
+        senderPersonalEmotesVersion.value++
     }
 
     suspend fun setSevenTVEmotes(

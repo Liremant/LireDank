@@ -105,6 +105,13 @@ android {
         getByName("debug") {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             manifestPlaceholders["applicationLabel"] = "@string/app_name"
+            // Sign debug builds with the release key when available, so they update CI installs
+            signingConfig =
+                if (signingConfigs.getByName("release").storeFile?.exists() == true) {
+                    signingConfigs.getByName("release")
+                } else {
+                    signingConfigs.getByName("debug")
+                }
         }
         create("dank") {
             initWith(getByName("release"))

@@ -60,3 +60,28 @@ data class Emotes(
 
     val suggestions: List<GenericEmote> = sorted.distinctBy(GenericEmote::code)
 }
+
+/** Adds personal 7TV emotes to the suggestion list; personal entries win on code conflicts. */
+fun Emotes.withPersonalEmotes(personal: List<GenericEmote>): Emotes {
+    if (personal.isEmpty()) return this
+    val personalCodes = personal.mapTo(mutableSetOf()) { it.code }
+    val filtered =
+        Emotes(
+            twitchEmotes = twitchEmotes.filterNot { it.code in personalCodes },
+            ffzChannelEmotes = ffzChannelEmotes.filterNot { it.code in personalCodes },
+            ffzGlobalEmotes = ffzGlobalEmotes.filterNot { it.code in personalCodes },
+            bttvChannelEmotes = bttvChannelEmotes.filterNot { it.code in personalCodes },
+            bttvGlobalEmotes = bttvGlobalEmotes.filterNot { it.code in personalCodes },
+            sevenTvChannelEmotes = sevenTvChannelEmotes.filterNot { it.code in personalCodes },
+            sevenTvGlobalEmotes = sevenTvGlobalEmotes.filterNot { it.code in personalCodes },
+        )
+    return Emotes(
+        twitchEmotes = filtered.twitchEmotes,
+        ffzChannelEmotes = filtered.ffzChannelEmotes,
+        ffzGlobalEmotes = filtered.ffzGlobalEmotes,
+        bttvChannelEmotes = filtered.bttvChannelEmotes,
+        bttvGlobalEmotes = filtered.bttvGlobalEmotes,
+        sevenTvChannelEmotes = filtered.sevenTvChannelEmotes,
+        sevenTvGlobalEmotes = filtered.sevenTvGlobalEmotes + personal,
+    )
+}

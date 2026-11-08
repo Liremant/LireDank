@@ -150,6 +150,7 @@ jobs:
         with:
           tag: ${{ steps.version.outputs.tag }}
           name: ${{ steps.version.outputs.name }}
+          prerelease: true
           artifacts: ${{ github.workspace }}/app/build/outputs/apk/release/LireDank-release*.apk
           body: |
             **LireDank v${{ steps.version.outputs.version }}** ([commit](https://github.com/${{ github.repository }}/commit/${{ github.sha }}))

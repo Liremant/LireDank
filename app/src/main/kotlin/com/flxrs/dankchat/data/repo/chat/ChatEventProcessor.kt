@@ -667,7 +667,7 @@ class ChatEventProcessor(
     private fun handleJoinTimedOut(event: ChatEvent.JoinTimedOut) = scope.launch {
         // A channel that exists but never produced its 366 should not leave the input disabled forever:
         // if the read socket is still alive, mark it connected (a later 366 is a no-op then)
-        if (chatConnector.readConnected) {
+        if (chatConnector.readConnected.value) {
             val state = if (event.isAnonymous) ConnectionState.CONNECTED_NOT_LOGGED_IN else ConnectionState.CONNECTED
             chatConnector.setConnectionState(event.channel, state)
             return@launch

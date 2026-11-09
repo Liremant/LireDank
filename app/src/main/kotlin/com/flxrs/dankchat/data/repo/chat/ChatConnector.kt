@@ -36,7 +36,7 @@ class ChatConnector(
     val eventSubEvents get() = eventSubManager.events
 
     /** Whether the global read socket is currently connected, regardless of per-channel joins. */
-    val readConnected get() = readConnection.connected.value
+    val readConnected: StateFlow<Boolean> get() = readConnection.connected
 
     fun getConnectionState(channel: UserName): StateFlow<ConnectionState> = connectionStateFlow(channel)
 

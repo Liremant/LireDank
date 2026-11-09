@@ -33,8 +33,8 @@ android {
         applicationId = "com.liredank.app"
         minSdk = 30
         targetSdk = 36
-        versionCode = 40049
-        versionName = "4.0.49"
+        versionCode = 40050
+        versionName = "4.0.50"
     }
 
     androidResources { generateLocaleConfig = true }

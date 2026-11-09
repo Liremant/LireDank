@@ -288,6 +288,7 @@ class ChatInputViewModel(
                         chatConnector.getConnectionState(channel)
                     }
                 },
+                chatConnector.readConnected,
                 appearanceSettingsDataStore.settings.map {
                     InputSettings(
                         autoDisableInput = it.autoDisableInput,
@@ -301,8 +302,8 @@ class ChatInputViewModel(
                     )
                 },
                 preferenceStore.isLoggedInFlow,
-            ) { hasText, activeChannel, connectionState, inputSettings, isLoggedIn ->
-                UiDependencies(hasText, activeChannel, connectionState, isLoggedIn, inputSettings)
+            ) { hasText, activeChannel, connectionState, readConnected, inputSettings, isLoggedIn ->
+                UiDependencies(hasText, activeChannel, connectionState, readConnected, isLoggedIn, inputSettings)
             }
 
         val replyStateFlow =
@@ -338,7 +339,10 @@ class ChatInputViewModel(
             val isWhisperTabActive = (overlayState.sheetState is FullScreenSheetState.Mention || overlayState.sheetState is FullScreenSheetState.Whisper) && overlayState.tab == 1
             val isInReplyThread = overlayState.sheetState is FullScreenSheetState.Replies
             val effectiveIsReplying = overlayState.isReplying || isInReplyThread
-            val canTypeInConnectionState = deps.connectionState == ConnectionState.CONNECTED || !deps.inputSettings.autoDisableInput
+            // A missed IRC 366 can leave a channel's state DISCONNECTED while the socket is alive;
+            // typing must not depend on that per-channel bookkeeping
+            val canTypeInConnectionState =
+                deps.connectionState == ConnectionState.CONNECTED || deps.readConnected || !deps.inputSettings.autoDisableInput
 
             val inputState =
                 when (deps.connectionState) {
@@ -709,6 +713,7 @@ private data class UiDependencies(
     val hasText: Boolean,
     val activeChannel: UserName?,
     val connectionState: ConnectionState,
+    val readConnected: Boolean,
     val isLoggedIn: Boolean,
     val inputSettings: InputSettings,
 )

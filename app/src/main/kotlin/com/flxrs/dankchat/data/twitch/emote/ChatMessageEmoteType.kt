@@ -34,6 +34,12 @@ sealed interface ChatMessageEmoteType : Parcelable {
     ) : ChatMessageEmoteType
 
     @Parcelize
+    data class PersonalSevenTVEmote(
+        val creator: DisplayName?,
+        val baseName: String?,
+    ) : ChatMessageEmoteType
+
+    @Parcelize
     data class GlobalSevenTVEmote(
         val creator: DisplayName?,
         val baseName: String?,
@@ -49,6 +55,8 @@ fun EmoteType.toChatMessageEmoteType(): ChatMessageEmoteType = when (this) {
     is EmoteType.ChannelFFZEmote -> ChatMessageEmoteType.ChannelFFZEmote(creator)
 
     is EmoteType.ChannelSevenTVEmote -> ChatMessageEmoteType.ChannelSevenTVEmote(creator, baseName)
+
+    is EmoteType.PersonalSevenTVEmote -> ChatMessageEmoteType.PersonalSevenTVEmote(creator, baseName)
 
     EmoteType.GlobalBTTVEmote -> ChatMessageEmoteType.GlobalBTTVEmote
 

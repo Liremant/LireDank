@@ -14,11 +14,13 @@ fun EmoteSheetData.toBasicEmoteInfoItem(): EmoteInfoItem = EmoteInfoItem(
     imageUrl = url,
     baseName = when (type) {
         is ChatMessageEmoteType.ChannelSevenTVEmote -> type.baseName
+        is ChatMessageEmoteType.PersonalSevenTVEmote -> type.baseName
         is ChatMessageEmoteType.GlobalSevenTVEmote -> type.baseName
         else -> null
     },
     creatorName = when (type) {
         is ChatMessageEmoteType.ChannelSevenTVEmote -> type.creator
+        is ChatMessageEmoteType.PersonalSevenTVEmote -> type.creator
         is ChatMessageEmoteType.GlobalSevenTVEmote -> type.creator
         is ChatMessageEmoteType.ChannelBTTVEmote -> type.creator
         is ChatMessageEmoteType.ChannelFFZEmote -> type.creator
@@ -50,6 +52,8 @@ fun EmoteSheetData.toBasicEmoteInfoItem(): EmoteInfoItem = EmoteInfoItem(
         is ChatMessageEmoteType.ChannelFFZEmote -> R.string.emote_sheet_ffz_channel_emote
 
         is ChatMessageEmoteType.ChannelSevenTVEmote -> R.string.emote_sheet_seventv_channel_emote
+
+        is ChatMessageEmoteType.PersonalSevenTVEmote -> R.string.emote_sheet_seventv_personal_emote
 
         ChatMessageEmoteType.GlobalBTTVEmote -> R.string.emote_sheet_bttv_global_emote
 

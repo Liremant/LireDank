@@ -724,7 +724,7 @@ class EmoteRepository(
             set.emotes.orEmpty().mapNotNull { emote ->
                 parseSevenTVEmote(
                     emote,
-                    EmoteType.ChannelSevenTVEmote(emote.data?.owner?.displayName, emote.data?.baseName?.takeIf { emote.name != it }),
+                    EmoteType.PersonalSevenTVEmote(emote.data?.owner?.displayName, emote.data?.baseName?.takeIf { emote.name != it }),
                 )
             }
     }

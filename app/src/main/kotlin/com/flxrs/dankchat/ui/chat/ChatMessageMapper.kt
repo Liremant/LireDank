@@ -575,6 +575,7 @@ class ChatMessageMapper(
 
                                 // Assume third-party can be animated
                                 is ChatMessageEmoteType.ChannelSevenTVEmote,
+                                is ChatMessageEmoteType.PersonalSevenTVEmote,
                                 is ChatMessageEmoteType.GlobalSevenTVEmote,
                                 -> true
 
@@ -790,6 +791,7 @@ class ChatMessageMapper(
                                 -> true
 
                                 is ChatMessageEmoteType.ChannelSevenTVEmote,
+                                is ChatMessageEmoteType.PersonalSevenTVEmote,
                                 is ChatMessageEmoteType.GlobalSevenTVEmote,
                                 -> true
 

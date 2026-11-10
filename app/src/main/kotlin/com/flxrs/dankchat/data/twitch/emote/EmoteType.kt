@@ -44,6 +44,13 @@ sealed interface EmoteType : Comparable<EmoteType> {
         override val title = "SevenTV"
     }
 
+    data class PersonalSevenTVEmote(
+        val creator: DisplayName?,
+        val baseName: String?,
+    ) : EmoteType {
+        override val title = "SevenTV Personal"
+    }
+
     data object GlobalTwitchEmote : EmoteType {
         override val title = "Twitch"
     }

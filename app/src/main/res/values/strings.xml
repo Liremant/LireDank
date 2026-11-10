@@ -874,6 +874,7 @@
     <string name="emote_sheet_bttv_shared_emote">Shared BTTV Emote</string>
     <string name="emote_sheet_bttv_global_emote">Global BTTV Emote</string>
     <string name="emote_sheet_seventv_channel_emote">Channel 7TV Emote</string>
+    <string name="emote_sheet_seventv_personal_emote">Personal 7TV Emote</string>
     <string name="emote_sheet_seventv_global_emote">Global 7TV Emote</string>
     <string name="emote_sheet_alias_of">Alias of %1$s</string>
     <string name="emote_sheet_created_by">Created by %1$s</string>

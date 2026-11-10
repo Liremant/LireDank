@@ -187,7 +187,7 @@ jobs:
           name: ${{ steps.version.outputs.name }}
           prerelease: true
           artifacts: ${{ github.workspace }}/app/build/outputs/apk/release/LireDank-release*.apk
-          bodyPath: release-notes.md
+          bodyFile: release-notes.md
           allowUpdates: true
           replacesArtifacts: true
           token: ${{ secrets.GITHUB_TOKEN }}

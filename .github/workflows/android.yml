@@ -132,7 +132,9 @@ jobs:
         id: changelog
         run: |
           # Conventional commits since the previous release tag
-          prev_tag=$(git tag --list 'v*' --sort=-v:refname | head -1)
+          # Tags created by the release action only exist on the remote; fetch them first
+          git fetch --tags origin >/dev/null 2>&1 || true
+          prev_tag=$(git tag --list 'v*' --sort=-v:refname | grep -v "^${{ steps.version.outputs.tag }}$" | head -1)
           if [ -z "$prev_tag" ]; then
             range="HEAD"
           else

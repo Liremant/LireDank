@@ -109,7 +109,8 @@ internal class FeatureTourViewModelTest {
             viewModel.onChannelsChanged(empty = false, ready = true)
             viewModel.onToolbarHintDismissed()
 
-            assertEquals(PostOnboardingStep.FeatureTour, expectMostRecentItem().postOnboardingStep)
+            // Version 0 is one behind the current tour: a finished hint for it still unlocks the input
+            assertEquals(PostOnboardingStep.Complete, expectMostRecentItem().postOnboardingStep)
         }
     }
 
@@ -131,7 +132,7 @@ internal class FeatureTourViewModelTest {
     }
 
     @Test
-    fun `existing user migration skips toolbar hint but shows tour`() = runTest(testDispatcher) {
+    fun `existing user migration with a stale tour version unlocks the input`() = runTest(testDispatcher) {
         viewModel.uiState.test {
             skipItems(1)
             emitSettings {
@@ -143,7 +144,8 @@ internal class FeatureTourViewModelTest {
             }
             viewModel.onChannelsChanged(empty = false, ready = true)
 
-            assertEquals(PostOnboardingStep.FeatureTour, expectMostRecentItem().postOnboardingStep)
+            // A completed hint for the previous tour version no longer locks the input
+            assertEquals(PostOnboardingStep.Complete, expectMostRecentItem().postOnboardingStep)
         }
     }
 
@@ -296,7 +298,7 @@ internal class FeatureTourViewModelTest {
             viewModel.onToolbarHintDismissed()
             viewModel.onToolbarHintDismissed() // second call should be no-op
 
-            assertEquals(PostOnboardingStep.FeatureTour, expectMostRecentItem().postOnboardingStep)
+            assertEquals(PostOnboardingStep.Complete, expectMostRecentItem().postOnboardingStep)
         }
     }
 

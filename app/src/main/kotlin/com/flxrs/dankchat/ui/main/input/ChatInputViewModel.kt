@@ -303,7 +303,9 @@ class ChatInputViewModel(
                 },
                 preferenceStore.isLoggedInFlow,
             ) { hasText, activeChannel, connectionState, readConnected, inputSettings, isLoggedIn ->
-                println("LireDankDebug uiState deps: hasText=$hasText activeChannel=$activeChannel connectionState=$connectionState readConnected=$readConnected isLoggedIn=$isLoggedIn autoDisable=${inputSettings.autoDisableInput}")
+                println(
+                    "LireDankDebug uiState deps: hasText=$hasText activeChannel=$activeChannel connectionState=$connectionState readConnected=$readConnected isLoggedIn=$isLoggedIn autoDisable=${inputSettings.autoDisableInput}",
+                )
                 UiDependencies(hasText, activeChannel, connectionState, readConnected, isLoggedIn, inputSettings)
             }
 

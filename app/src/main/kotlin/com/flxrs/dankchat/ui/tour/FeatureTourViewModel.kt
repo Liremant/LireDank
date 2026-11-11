@@ -253,7 +253,9 @@ class FeatureTourViewModel(
     ): PostOnboardingStep = when {
         tourCompleted -> PostOnboardingStep.Complete
 
-        settings.featureTourVersion >= CURRENT_TOUR_VERSION && toolbarHintDone -> PostOnboardingStep.Complete
+        // A finished tour for an older version counts as done for the current one too:
+        // blocking the input on a stale version locked the text field forever
+        settings.featureTourVersion >= CURRENT_TOUR_VERSION - 1 && toolbarHintDone -> PostOnboardingStep.Complete
 
         !settings.hasCompletedOnboarding -> PostOnboardingStep.Idle
 

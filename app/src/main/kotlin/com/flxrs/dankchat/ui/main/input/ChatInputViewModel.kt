@@ -303,6 +303,7 @@ class ChatInputViewModel(
                 },
                 preferenceStore.isLoggedInFlow,
             ) { hasText, activeChannel, connectionState, readConnected, inputSettings, isLoggedIn ->
+                println("LireDankDebug uiState deps: hasText=$hasText activeChannel=$activeChannel connectionState=$connectionState readConnected=$readConnected isLoggedIn=$isLoggedIn autoDisable=${inputSettings.autoDisableInput}")
                 UiDependencies(hasText, activeChannel, connectionState, readConnected, isLoggedIn, inputSettings)
             }
 
@@ -370,6 +371,7 @@ class ChatInputViewModel(
                     isWhisperTabActive -> deps.isLoggedIn && canTypeInConnectionState && overlayState.whisperTarget != null
                     else -> deps.isLoggedIn && canTypeInConnectionState
                 }
+            println("LireDankDebug uiState: enabled=$enabled isMentionsTabActive=$isMentionsTabActive isWhisperTabActive=$isWhisperTabActive canType=$canTypeInConnectionState")
 
             val canSend = deps.hasText && deps.activeChannel != null && deps.connectionState == ConnectionState.CONNECTED && deps.isLoggedIn && enabled
 

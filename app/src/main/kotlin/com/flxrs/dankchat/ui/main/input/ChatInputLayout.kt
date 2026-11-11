@@ -286,6 +286,7 @@ fun ChatInputLayout(
                 val density = LocalDensity.current
                 var singleLineHeight by remember { mutableIntStateOf(0) }
                 val textFieldEnabled = enabled && !tourState.isTourActive
+                android.util.Log.d("LireDankDebug", "layout: textFieldEnabled=$textFieldEnabled enabled=$enabled tourActive=${tourState.isTourActive} inputState=$inputState")
                 val onKeyboardSend: (() -> Unit) -> Unit = {
                     if (canSend) {
                         onSend()

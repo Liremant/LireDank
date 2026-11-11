@@ -76,6 +76,9 @@ class EmoteMenuViewModel(
                             is EmoteType.ChannelSevenTVEmote,
                             -> EmoteMenuTab.CHANNEL
 
+                            is EmoteType.PersonalSevenTVEmote,
+                            -> EmoteMenuTab.PERSONAL
+
                             else -> EmoteMenuTab.GLOBAL
                         }
                     }
@@ -83,6 +86,7 @@ class EmoteMenuViewModel(
                     async { EmoteMenuTabItem(EmoteMenuTab.RECENT, availableRecents.toEmoteItems()) },
                     async { EmoteMenuTabItem(EmoteMenuTab.SUBS, groupedByType[EmoteMenuTab.SUBS].toEmoteItemsWithFront(channel)) },
                     async { EmoteMenuTabItem(EmoteMenuTab.CHANNEL, groupedByType[EmoteMenuTab.CHANNEL].orEmpty().toEmoteItems()) },
+                    async { EmoteMenuTabItem(EmoteMenuTab.PERSONAL, groupedByType[EmoteMenuTab.PERSONAL].orEmpty().toEmoteItems()) },
                     async { EmoteMenuTabItem(EmoteMenuTab.GLOBAL, groupedByType[EmoteMenuTab.GLOBAL].orEmpty().toEmoteItems()) },
                 ).awaitAll().toImmutableList()
             }

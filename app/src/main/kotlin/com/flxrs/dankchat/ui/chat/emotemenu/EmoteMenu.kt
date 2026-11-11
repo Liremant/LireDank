@@ -108,6 +108,7 @@ fun EmoteMenu(
                                         EmoteMenuTab.RECENT -> stringResource(R.string.emote_menu_tab_recent)
                                         EmoteMenuTab.SUBS -> stringResource(R.string.emote_menu_tab_subs)
                                         EmoteMenuTab.CHANNEL -> stringResource(R.string.emote_menu_tab_channel)
+                                        EmoteMenuTab.PERSONAL -> stringResource(R.string.emote_menu_tab_personal)
                                         EmoteMenuTab.GLOBAL -> stringResource(R.string.emote_menu_tab_global)
                                     },
                             )

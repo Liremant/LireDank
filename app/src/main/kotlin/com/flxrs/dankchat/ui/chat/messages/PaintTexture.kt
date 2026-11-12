@@ -100,7 +100,10 @@ internal class PaintTextures {
 
     fun reusableBitmap(url: String): Bitmap? = reusableBitmaps[url]
 
-    fun storeReusableBitmap(url: String, bitmap: Bitmap) {
+    fun storeReusableBitmap(
+        url: String,
+        bitmap: Bitmap,
+    ) {
         reusableBitmaps[url] = bitmap
     }
 

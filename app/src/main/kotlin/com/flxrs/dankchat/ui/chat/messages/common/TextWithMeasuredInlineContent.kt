@@ -133,8 +133,8 @@ internal fun TextWithMeasuredInlineContent(
     val textures =
         rememberPaintTextures(urls = textureUrls)
 
-    // Cached offscreen rendering of the painted name (with chained shadows). Animated textures change every
-    // frame, so those rows render per pass instead of reusing the cache.
+    // Cached offscreen rendering of the painted name with chained shadows. The frame-bitmap keys recompute
+    // this for animated paints on every frame tick, before draw runs in the same frame.
     val paintedNameLayoutState = paintedNameLayout
     val cachedRenderedPaint =
         remember(
@@ -144,9 +144,14 @@ internal fun TextWithMeasuredInlineContent(
             density.density,
             layoutDirection,
             textures,
+            // Per-row frame bitmaps: reading them subscribes this row only to its own texture keys, so a
+            // static row never recomposes when another row's animated paint ticks a new frame
+            textureUrls.map { textures[it] },
         ) {
             val layout = paintedNameLayoutState.value?.layout ?: return@remember null
             val currentPaint = namePaint ?: return@remember null
+            // Paints without shadows draw directly into the canvas: caching them would only add an
+            // offscreen bitmap allocation on every painted name
             if (currentPaint.shadows.none { it.isVisible }) return@remember null
             val bounds = Rect(Offset.Zero, layout.size.toSize())
             renderPaintedName(currentPaint, layout, bounds, nameColor, textures, density, layoutDirection)
@@ -286,21 +291,27 @@ internal fun TextWithMeasuredInlineContent(
                         drawnLayers
                     }
 
-                    val drawnLayers =
-                        if (paint.shadows.any { it.isVisible }) {
-                            // Shadows chain like chatterino7's drop-shadow filters, so the painted name renders
-                            // offscreen first, padded so every blurred copy fits. Animated textures change every
-                            // frame, so those rows bypass the cached rendering.
-                            val hasAnimatedTexture =
-                                paint.layers.any { layer ->
-                                    (layer.shape as? SevenTVPaintShape.Image)?.url in textures.animatedUrls
-                                }
-                            val rendered =
-                                when {
-                                    hasAnimatedTexture -> renderPaintedName(paint, painted, bounds, nameColor, textures, density, layoutDirection)
-                                    cachedRenderedPaint != null -> cachedRenderedPaint
-                                    else -> renderPaintedName(paint, painted, bounds, nameColor, textures, density, layoutDirection)
-                                }
+                    var drawnLayers = 0
+                    val hasVisibleShadows = paint.shadows.any { it.isVisible }
+                    when {
+                        // Shadowed paints render offscreen with the shadow chain (the cached bitmap recomputes
+                        // every frame tick for animated textures, so it is always fresh at draw time)
+                        cachedRenderedPaint != null -> {
+                            drawImage(
+                                cachedRenderedPaint.image,
+                                dstOffset =
+                                    IntOffset(
+                                        (topLeft.x - cachedRenderedPaint.padX).roundToInt(),
+                                        (topLeft.y - cachedRenderedPaint.padY).roundToInt(),
+                                    ),
+                            )
+                            drawnLayers = cachedRenderedPaint.drawnLayers
+                        }
+
+                        // First frame of a shadowed paint: the cache is not built yet, render fresh so the
+                        // shadows appear immediately instead of flashing one frame without them
+                        hasVisibleShadows -> {
+                            val rendered = renderPaintedName(paint, painted, bounds, nameColor, textures, density, layoutDirection)
                             drawImage(
                                 rendered.image,
                                 dstOffset =
@@ -309,10 +320,14 @@ internal fun TextWithMeasuredInlineContent(
                                         (topLeft.y - rendered.padY).roundToInt(),
                                     ),
                             )
-                            rendered.drawnLayers
-                        } else {
-                            translate(left = topLeft.x, top = topLeft.y) { drawPainted() }
+                            drawnLayers = rendered.drawnLayers
                         }
+
+                        // No shadows: draw straight into the canvas
+                        else -> {
+                            translate(left = topLeft.x, top = topLeft.y) { drawnLayers = drawPainted() }
+                        }
+                    }
 
                     // A texture that has not loaded yet draws nothing, so the nickname needs a fallback
                     if (drawnLayers == 0) {
